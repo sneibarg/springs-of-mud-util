@@ -12,24 +12,29 @@ def generate_mongo_id():
     return (timestamp + machine_id + process_id + counter).hex()
 
 
-def post(payload, url):
+def do_request(method, url, payload):
     headers = {'Content-Type': 'application/json'}
-    resp = requests.post(url, data=json.dumps(payload), headers=headers)
-    print("POST_STATUS: "+str(resp.status_code))
-    if resp.status_code == 201 or resp.status_code == 200:
+    resp = method(url, data=json.dumps(payload), headers=headers)
+    if resp.status_code in [200, 201]:
         return resp
     print(f'Error: {resp.text}')
     return None
 
 
+def get(payload, url):
+    return do_request(requests.get, url, payload)
+
+
+def post(payload, url):
+    return do_request(requests.post, url, payload)
+
 
 def put(payload, url):
-    headers = {'Content-Type': 'application/json'}
-    resp = requests.put(url, data=json.dumps(payload), headers=headers)
-    if resp.status_code != 200:
-        print(f'Error: {resp.text}')
-        return None
-    return resp
+    return do_request(requests.put, url, payload)
+
+
+def delete(payload, url):
+    return do_request(requests.delete, url, payload)
 
 
 def new_area_payload(area):
@@ -45,7 +50,7 @@ def new_area_payload(area):
     return payload
 
 
-def generate_room_payload(room, area_id):
+def new_room_payload(room, area_id):
     payload = {
         'areaId': area_id,
         'description': room['description'],
