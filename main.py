@@ -12,9 +12,12 @@ def main():
             rooms = load_rooms(area_id, extract_rooms(sections['ROOMS']))
             print("ROOMS: "+str(rooms))
             mobiles = extract_mobiles(sections['MOBILES'])
+            load_mobiles(area_id, mobiles)
             print("MOBILES: " + str(mobiles))
             objects = extract_objects(sections['OBJECTS'])
-            print("OBJECTS: " + str(objects))
+            print("OBJECTS: "+str(objects))
+            items = load_objects(objects)
+            print("ITEMS: " + str(items))
             break
 
 

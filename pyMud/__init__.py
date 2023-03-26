@@ -1,8 +1,9 @@
 import json
 import re
 
-from pyMud.globals import area_api, room_api
-from pyMud.rest import new_area_payload, post, generate_mongo_id, new_room_payload
+from pyMud.globals import area_api, room_api, mobile_api, item_api
+from pyMud.rest import new_area_payload, post, generate_mongo_id, new_room_payload, new_object_payload, \
+    new_mobile_payload
 
 
 def lambda_match(input_str, pattern, anon_dict):
@@ -14,12 +15,36 @@ def lambda_match(input_str, pattern, anon_dict):
         return anon_dict
 
 
+def load_objects(objects):
+    new_objects = []
+    for mud_object in objects:
+        payload = new_object_payload(mud_object)
+        print("OBJECT_PAYLOAD: "+str(payload))
+        response = post(payload, item_api + "item")
+        content = json.loads(response.content)
+        new_objects.append(content)
+    return new_objects
+
+
+def load_mobiles(area_id, mobiles):
+    new_mobs = []
+    for mobile in mobiles:
+        payload = new_mobile_payload(mobile)
+        payload['areaId'] = area_id
+        print("MOBILE_PAYLOAD: "+str(payload))
+        response = post(payload, mobile_api + "mobile")
+        content = json.loads(response.content)
+        new_mobs.append(content)
+    return new_mobs
+
+
 def load_rooms(area_id, rooms):
     new_rooms = []
     for room in rooms:
-        room_payload = new_room_payload(room, generate_mongo_id())
-        room_payload['areaId'] = area_id
-        response = post(room_payload, room_api + "room")
+        payload = new_room_payload(room, generate_mongo_id())
+        payload['areaId'] = area_id
+        print("ROOM_PAYLOAD: "+str(payload))
+        response = post(payload, room_api + "room")
         content = json.loads(response.content)
         new_rooms.append(content)
     return new_rooms
@@ -29,8 +54,9 @@ def load_area(areas, area_file):
     sections = parse_area_file(area_file)
     area_info = extract_area_fields(sections['AREA'][2])
     areas[area_info['name']] = area_info
-    area = new_area_payload(area_info)
-    response = post(area, area_api + "areas")
+    payload = new_area_payload(area_info)
+    print("AREA_PAYLOAD: "+str(payload))
+    response = post(payload, area_api + "areas")
     content = json.loads(response.content)
     return sections, str(content['id'])
 
@@ -72,21 +98,6 @@ def parse_area_file(filename):
     return parsed_sections
 
 
-def extract_area_info(data):
-    print("AREA_DATA: " + str(data))
-    print("AREA_FILE: " + str(data[0]))
-    print("AREA_NAME: " + str(data[1]))
-    print("LEVEL_RANGE: " + str(data[2]))
-    print("VNUM_RANGE: " + str(data[3]))
-
-    return {
-        'area_file': data[0],
-        'area_name': data[1],
-        'level_range': data[2],
-        'vnum_range': data[3]
-    }
-
-
 def extract_subsection(data, parser):
     subsections = []
     fields = []
@@ -111,10 +122,6 @@ def extract_area_fields(s):
     level_range = named_captures.get("level_range")
     area_name = named_captures.get("area_name")
     author = named_captures.get("author")
-
-    # print(f"Level range: {level_range}")
-    # print(f"Author: {author}")
-    # print(f"Area name: {area_name}")
 
     return {
         "suggested_level_range": level_range,

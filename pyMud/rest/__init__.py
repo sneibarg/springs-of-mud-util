@@ -1,6 +1,7 @@
 import json
 import time
 import random
+
 import requests
 
 
@@ -77,4 +78,55 @@ def new_room_payload(room, area_id):
             payload['south'] = exit_info['to_vnum']
         elif exit_dir == 'west':
             payload['west'] = exit_info['to_vnum']
+        elif exit_dir == 'up':
+            payload['up'] = exit_info['to_vnum']
+        elif exit_dir == 'down':
+            payload['down'] = exit_info['to_vnum']
+    return payload
+
+
+def new_mobile_payload(mobile):
+    mobile = mobile[0]
+    payload = {
+        "areaId": "",
+        "roomId": "",
+        "name": "",
+        "race": mobile['race'],
+        "mobClass": "",
+        "shortDescription": mobile['short-description'].replace("~", ""),
+        "longDescription": mobile['long-description'].replace("~", ""),
+        "description": '\r\n'.join(mobile['description']),
+        "keywords": mobile['keywords'].replace("~", ""),
+        "role": "",
+        "guild": "",
+        "level": mobile['level'],
+        "actFlags": mobile['act-flags'],
+        "hitDice": mobile['hit-dice'],
+        "damDice": mobile['dam-dice'],
+        "position": mobile['position'],
+        "sex": mobile['sex'],
+        "currentHealth": "",
+        "maxHealth": "",
+        "inventory": [],
+        "skills": [],
+        "statuses": []
+    }
+    print("PAYLOAD: "+str(payload))
+    return payload
+
+
+def new_object_payload(obj):
+    payload = {
+        "name": obj['name'],
+        "shortDescription": obj['short_descr'].replace("~", ""),
+        "longDescription": obj['long_descr'].replace("~",  ""),
+        "description": obj['description'].replace("~", ""),
+        "type": obj['item_type'],
+        "extraFlags": obj['extra_flags'],
+        "wearFlags": obj['wear_flags'],
+        "value": obj['value'],
+        "weight": obj['weight'].replace("~", ""),
+        "level": obj['level'],
+        "affectData": obj['affect_data'].replace("~", "")
+    }
     return payload
