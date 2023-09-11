@@ -1,11 +1,15 @@
 import json
-import time
 import random
-
 import requests
+import time
+
+from pyMud import area_api
 
 
-def generate_mongo_id():
+def generate_mongo_id() -> str:
+    """
+    Generate a unique MongoDB ObjectId as a hexadecimal string.
+    """
     timestamp = int(time.time()).to_bytes(4, 'big')
     machine_id = random.getrandbits(24).to_bytes(3, 'big')
     process_id = random.getrandbits(16).to_bytes(2, 'big')
@@ -13,32 +17,46 @@ def generate_mongo_id():
     return (timestamp + machine_id + process_id + counter).hex()
 
 
-def do_request(method, url, payload):
+def get(payload, url):
+    """
+    Make an HTTP GET request with the given payload to the specified URL.
+    """
     headers = {'Content-Type': 'application/json'}
-    resp = method(url, data=json.dumps(payload), headers=headers)
+    resp = requests.get(url, data=json.dumps(payload), headers=headers)
     if resp.status_code in [200, 201]:
         return resp
     print(f'Error: {resp.text}')
     return None
 
 
-def get(payload, url):
-    return do_request(requests.get, url, payload)
-
-
 def post(payload, url):
-    return do_request(requests.post, url, payload)
+    """
+    Make an HTTP POST request with the given payload to the specified URL.
+    """
+    headers = {'Content-Type': 'application/json'}
+    resp = requests.post(url, data=json.dumps(payload), headers=headers)
+    if resp.status_code in [200, 201]:
+        return resp
+    print(f'Error: {resp.text}')
+    return None
 
 
 def put(payload, url):
-    return do_request(requests.put, url, payload)
-
-
-def delete(payload, url):
-    return do_request(requests.delete, url, payload)
+    """
+    Make an HTTP PUT request with the given payload to the specified URL.
+    """
+    headers = {'Content-Type': 'application/json'}
+    resp = requests.put(url, data=json.dumps(payload), headers=headers)
+    if resp.status_code in [200, 201]:
+        return resp
+    print(f'Error: {resp.text}')
+    return None
 
 
 def new_area_payload(area):
+    """
+    Return a payload for creating a new area document in MongoDB.
+    """
     payload = {
         'name': area['name'],
         'author': area['author'],
@@ -48,10 +66,16 @@ def new_area_payload(area):
         'repopStrategy': "",
         'repopInterval': 0
     }
-    return payload
+    headers = {'Content-Type': 'application/json'}
+    response = requests.post(area_api + "areas", data=json.dumps(payload), headers=headers)
+    content = json.loads(response.content)
+    return str(content['id'])
 
 
 def new_room_payload(room, area_id):
+    """
+    Return a payload for creating a new room document in MongoDB.
+    """
     payload = {
         'areaId': area_id,
         'description': room['description'],
@@ -86,6 +110,9 @@ def new_room_payload(room, area_id):
 
 
 def new_mobile_payload(mobile):
+    """
+    Return a payload for creating a new mobile document in MongoDB.
+    """
     mobile = mobile[0]
     payload = {
         "areaId": "",
@@ -93,8 +120,8 @@ def new_mobile_payload(mobile):
         "name": "",
         "race": mobile['race'],
         "mobClass": "",
-        "shortDescription": mobile['short-description'].replace("~", ""),
-        "longDescription": mobile['long-description'].replace("~", ""),
+        "shortDescription": mobile['short-description'].replace("", ""),
+        "longDescription": mobile['long-description'].replace("", ""),
         "description": '\r\n'.join(mobile['description']),
         "keywords": mobile['keywords'].replace("~", ""),
         "role": "",
@@ -111,21 +138,23 @@ def new_mobile_payload(mobile):
         "skills": [],
         "statuses": []
     }
-    print("PAYLOAD: "+str(payload))
     return payload
 
 
 def new_object_payload(obj):
+    """
+    Return a payload for creating a new object document in MongoDB.
+    """
     payload = {
         "name": obj['name'],
-        "shortDescription": obj['short_descr'].replace("~", ""),
-        "longDescription": obj['long_descr'].replace("~",  ""),
-        "description": obj['description'].replace("~", ""),
+        "shortDescription": obj['short_descr'].replace("", ""),
+        "longDescription": obj['long_descr'].replace("", ""),
+        "description": obj['description'].replace("", ""),
         "type": obj['item_type'],
         "extraFlags": obj['extra_flags'],
         "wearFlags": obj['wear_flags'],
         "value": obj['value'],
-        "weight": obj['weight'].replace("~", ""),
+        "weight": obj['weight'].replace("", ""),
         "level": obj['level'],
         "affectData": obj['affect_data'].replace("~", "")
     }

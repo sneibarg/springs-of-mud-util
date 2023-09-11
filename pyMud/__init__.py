@@ -57,6 +57,7 @@ def load_area(areas, area_file):
     payload = new_area_payload(area_info)
     print("AREA_PAYLOAD: "+str(payload))
     response = post(payload, area_api + "areas")
+    print("RESPONSE="+str(response))
     content = json.loads(response.content)
     return sections, str(content['id'])
 
