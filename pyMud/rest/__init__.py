@@ -3,7 +3,7 @@ import random
 import requests
 import time
 
-from pyMud import area_api
+from pyMud.globals import area_api
 
 
 def generate_mongo_id() -> str:
@@ -58,6 +58,7 @@ def new_area_payload(area):
     Return a payload for creating a new area document in MongoDB.
     """
     payload = {
+        'id': None,
         'name': area['name'],
         'author': area['author'],
         'totalRooms': 0,
@@ -66,10 +67,7 @@ def new_area_payload(area):
         'repopStrategy': "",
         'repopInterval': 0
     }
-    headers = {'Content-Type': 'application/json'}
-    response = requests.post(area_api + "areas", data=json.dumps(payload), headers=headers)
-    content = json.loads(response.content)
-    return str(content['id'])
+    return payload
 
 
 def new_room_payload(room, area_id):
@@ -78,60 +76,56 @@ def new_room_payload(room, area_id):
     """
     payload = {
         'areaId': area_id,
-        'description': room['description'],
+        'vnum': room['vnum'],
         'name': room['name'],
+        'description': room['description'],
+        'tele_delay': room['tele_delay'],
+        'room_flags': room['room_flags'],
+        'sector_type': room['sector_type'],
         'spawn': False,
         'spawnTimer': 60000,
         'mobiles': [],
-        'east': '',
-        'north': '',
-        'south': '',
-        'west': '',
+        'exits': {},
+        'extra_descr': room['extra_descr'],
         'spawnTime': 0,
         'alternateRoutes': [],
-        'up': '',
-        'down': '',
         'pvp': False
     }
-    for exit_dir, exit_info in room['exits'].items():
-        if exit_dir == 'north':
-            payload['north'] = exit_info['to_vnum']
-        elif exit_dir == 'east':
-            payload['east'] = exit_info['to_vnum']
-        elif exit_dir == 'south':
-            payload['south'] = exit_info['to_vnum']
-        elif exit_dir == 'west':
-            payload['west'] = exit_info['to_vnum']
-        elif exit_dir == 'up':
-            payload['up'] = exit_info['to_vnum']
-        elif exit_dir == 'down':
-            payload['down'] = exit_info['to_vnum']
+    for direction, exit_info in room['exits'].items():
+        payload['exits'][direction] = {
+            'to_room_vnum': exit_info['to_room_vnum'],
+            'exit_flags': exit_info['exit_flags'],
+            'key': exit_info['key'],
+            'description': exit_info['description'],
+            'keyword': exit_info['keyword']
+        }
     return payload
 
 
 def new_mobile_payload(mobile):
     """
     Return a payload for creating a new mobile document in MongoDB.
+    Handles missing keys by providing default values.
     """
-    mobile = mobile[0]
+    print("MOBILE_DATA=" + str(mobile))
     payload = {
         "areaId": "",
         "roomId": "",
         "name": "",
-        "race": mobile['race'],
+        "race": mobile.get('race', ''),
         "mobClass": "",
-        "shortDescription": mobile['short-description'].replace("", ""),
-        "longDescription": mobile['long-description'].replace("", ""),
-        "description": '\r\n'.join(mobile['description']),
-        "keywords": mobile['keywords'].replace("~", ""),
+        "shortDescription": mobile.get('short_descr', ''),
+        "longDescription": mobile.get('long_descr', ''),
+        "description": mobile.get('description', ''),
         "role": "",
         "guild": "",
-        "level": mobile['level'],
-        "actFlags": mobile['act-flags'],
-        "hitDice": mobile['hit-dice'],
-        "damDice": mobile['dam-dice'],
-        "position": mobile['position'],
-        "sex": mobile['sex'],
+        "level": mobile.get('level', 0),
+        "actFlags": mobile.get('act', 0),
+        "hitDice": "{}d{}+{}".format(*mobile.get('hit', [0, 0, 0])),
+        "damDice": "{}d{}+{}".format(*mobile.get('damage', [0, 0, 0])),
+        "startPosition": mobile.get('start_pos', 0),
+        "defaultPosition": mobile.get('default_pos', 0),
+        "sex": mobile.get('sex', 0),
         "currentHealth": "",
         "maxHealth": "",
         "inventory": [],

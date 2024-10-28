@@ -1,7 +1,7 @@
-area_api = "http://malboji:8082/api/v1/"
-room_api = "http://malboji:8083/api/v1/"
-mobile_api = "http://malboji:8084/api/v1/"
-item_api = "http://malboji:8085/api/v1/"
+area_api = "http://dragon:8082/api/v1/"
+room_api = "http://dragon:8083/api/v1/"
+mobile_api = "http://dragon:8084/api/v1/"
+item_api = "http://dragon:8085/api/v1/"
 
 directions = {
     '0': 'north',
