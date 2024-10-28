@@ -20,7 +20,7 @@ def main():
             print("FILE: " + str(os.path.join(area_dir, filename)))
             area = Area(str(os.path.join(area_dir, filename)))
             areas[area.lines[2].replace("~", "")] = area
-            continue
+            break
 
 
 if __name__ == '__main__':

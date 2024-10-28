@@ -1,9 +1,8 @@
 import json
 import random
-import requests
 import time
 
-from pyMud.globals import area_api
+import requests
 
 
 def generate_mongo_id() -> str:

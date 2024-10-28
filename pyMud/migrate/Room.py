@@ -1,4 +1,5 @@
-from pyMud.rest import new_room_payload
+from pyMud.globals import room_api
+from pyMud.rest import post, generate_mongo_id
 
 
 def parse_exit_data(lines, index):
@@ -92,6 +93,9 @@ def parse_extra_descr(lines, index):
 
 class Room:
     area_id = None
+    room_id = None
+    vnum = None
+    exits = {}
     """
     A class to parse room data from area files.
     """
@@ -144,11 +148,20 @@ class Room:
         Initializes the RoomParser with the area data.
         """
         self.area_id = area_id
+        self.room_id = generate_mongo_id()
         self.data = data
+        self.exits = {}  # Initialize exits dictionary
         room = self.extract_room_fields(self.data)
+        self.vnum = room['vnum']
+        self.extra_descr = room['extra_descr']
         print("ROOM=" + str(room))
-        room_payload = new_room_payload(room, self.area_id)
-        print("ROOM-PAYLOAD="+str(room_payload))
+
+        # Initially create the room without exits
+        room_payload = self.to_dict()  # Convert room to dictionary for payload
+        room_payload['id'] = self.room_id  # Add generated Mongo ID to payload
+        print("ROOM-PAYLOAD=" + str(room_payload))
+        response = post(room_payload, room_api + "room")
+        print("ROOM-RESPONSE=" + str(response))
 
     def extract_room_fields(self, lines):
         """
@@ -238,13 +251,12 @@ class Room:
                 exit_data = parse_exit_data(lines, index)
                 index = exit_data['index']  # Update index after parsing exit
                 room['exits'][direction] = exit_data['exit']
+                self.exits[direction] = exit_data['exit']  # Update the exits attribute of the Room object
             elif line == 'E':  # Extra description
                 index += 1  # Move to the next line for parsing extra description
                 extra_descr = parse_extra_descr(lines, index)
                 index = extra_descr['index']
                 room['extra_descr'].append(extra_descr['extra'])
-            else:
-                index += 1  # Skip unrecognized lines
 
         return room
 
@@ -283,3 +295,42 @@ class Room:
         else:
             print(f"Warning: Unknown sector type '{sector_str}'. Using default SECTOR_TYPES['INSIDE'].")
             return self.SECTOR_TYPES['INSIDE']  # Default sector type
+
+    def to_dict(self):
+        """
+        Converts the Room object to a dictionary for payload purposes.
+        """
+        return {
+            'areaId': self.area_id,
+            'vnum': self.vnum,
+            'name': self.data[1],  # Corrected index for name
+            'description': self.data[2],  # Corrected index for description
+            'tele_delay': self.data[3],  # Corrected index for tele_delay
+            'room_flags': self.data[4],  # Corrected index for room_flags
+            'sector_type': self.data[5],  # Corrected index for sector_type
+            'exits': {direction: {
+                'to_room_vnum': exit_info.get('to_room_vnum', None),
+                'exit_flags': exit_info.get('exit_flags', 0),
+                'key': exit_info.get('key', -1),
+                'description': exit_info.get('description', ''),
+                'keyword': exit_info.get('keyword', '')
+            } for direction, exit_info in self.exits.items()},
+            'extra_descr': self.extra_descr
+        }
+
+    def update_exits(self, room_id_mapping):
+        """
+        Updates the room exits with Mongo IDs instead of VNUMs.
+        """
+        for direction, exit_data in self.exits.items():
+            if 'to_room_vnum' in exit_data:
+                to_vnum = exit_data['to_room_vnum']
+                if to_vnum in room_id_mapping:
+                    exit_data['to_room_id'] = room_id_mapping[to_vnum]
+                    del exit_data['to_room_vnum']
+
+        # Update the room payload with the new exits
+        room_payload = self.to_dict()
+        print("UPDATED-ROOM-PAYLOAD=" + str(room_payload))
+        response = post(room_payload, room_api + "room")
+        print("UPDATED-ROOM-RESPONSE=" + str(response))
