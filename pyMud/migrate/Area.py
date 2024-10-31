@@ -23,12 +23,7 @@ class Area:
         self._initialize_sections()
         self.total_rooms = len(self.rooms)
         self._create_payload_and_post()
-        for room in self.rooms:
-            print("ROOM-ID-MAPPING="+str(self.room_id_mapping))
-            room_payload = new_room_payload(room, self.area_id, self.room_id_mapping)
-            print("ROOM-PAYLOAD=" + str(room_payload))
-            response = post(room_payload, room_api + "room")
-            print("ROOM-RESPONSE=" + str(response))
+        self.create_rooms()
 
     def _initialize_file(self, area_file):
         with open(area_file, 'r') as f:
@@ -190,3 +185,8 @@ class Area:
             "name": None
         }
 
+    def create_rooms(self):
+        for room in self.rooms:
+            room_payload = new_room_payload(room, self.area_id, self.room_id_mapping)
+            # print("ROOM-PAYLOAD=" + str(room_payload))
+            post(room_payload, room_api + "room")
