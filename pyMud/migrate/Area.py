@@ -17,13 +17,18 @@ class Area:
         self.shops = []
         self.resets = []
         self.specials = []
-        self.room_id_mapping = {}  # Maps room VNUM to Mongo ID
+        self.room_id_mapping = {}
 
         self._initialize_file(area_file)
         self._initialize_sections()
         self.total_rooms = len(self.rooms)
         self._create_payload_and_post()
-        self._update_room_exits()  # Update room exits with Mongo IDs
+        for room in self.rooms:
+            print("ROOM-ID-MAPPING="+str(self.room_id_mapping))
+            room_payload = new_room_payload(room, self.area_id, self.room_id_mapping)
+            print("ROOM-PAYLOAD=" + str(room_payload))
+            response = post(room_payload, room_api + "room")
+            print("ROOM-RESPONSE=" + str(response))
 
     def _initialize_file(self, area_file):
         with open(area_file, 'r') as f:
@@ -69,11 +74,13 @@ class Area:
 
     def _initialize_sections(self):
         """
-        Extracts different sections from the area data by splitting it into individual sections
-        and parsing each section independently.
+        Extracts different sections from the area data by splitting it into individual sections,
+        pre-generates MongoIDs for each room VNUM, and parses each section independently.
         """
         sections = self._split_sections()
         room_sections = self._split_rooms(sections['ROOMS'])
+
+        self._pre_generate_room_ids(room_sections) # pre-generate the Mongo ID
         self.rooms = [self._create_room(room_data) for room_data in room_sections if self._is_valid_room(room_data)]
         self.mobiles = sections['MOBILES']
         self.objects = sections['OBJECTS']
@@ -81,7 +88,8 @@ class Area:
         self.resets = sections['RESETS']
         self.specials = sections['SPECIALS']
 
-    def _split_rooms(self, room_lines):
+    @staticmethod
+    def _split_rooms(room_lines):
         """
         Splits the room data into individual room sections.
         Each room is represented as a list of lines.
@@ -106,21 +114,48 @@ class Area:
             rooms.append(current_room)
         return rooms
 
-    def _is_valid_room(self, room_data):
+    @staticmethod
+    def _is_valid_room(room_data):
         """
         Checks if the given room data is valid by looking for a VNUM pattern.
         """
         vnum_pattern = re.compile(r'^#\d+$')
         return any(vnum_pattern.match(line) for line in room_data)
 
+    def _pre_generate_room_ids(self, room_sections):
+        """
+        Iterates through all the rooms and pre-generates a MongoID for each VNUM.
+        """
+        for room_data in room_sections:
+            vnum = self._extract_vnum_from_room_data(room_data)
+            if vnum is not None:
+                mongo_id = generate_mongo_id()
+                self.room_id_mapping[vnum] = mongo_id
+
+    @staticmethod
+    def _extract_vnum_from_room_data(room_data):
+        """
+        Extracts the VNUM from the room data.
+        """
+        vnum_pattern = re.compile(r'^#(\d+)$')
+        for line in room_data:
+            match = vnum_pattern.match(line.strip())
+            if match:
+                return int(match.group(1))
+        return None
+
     def _create_room(self, room_data):
         """
-        Creates a Room object, generates its Mongo ID, and adds it to the room ID mapping.
+        Creates a Room object, assigns its pre-generated MongoID, and returns the room.
         """
-        room = Room(self.area_id, room_data)
-        self.room_id_mapping[room.vnum] = room.room_id
-        print("NEW-ROOM="+str(room))
-        return room
+        vnum = self._extract_vnum_from_room_data(room_data)
+        if vnum is not None and vnum in self.room_id_mapping:
+            room_id = self.room_id_mapping[vnum]
+            room = Room(self.area_id, room_data, room_id)  # Pass the pre-generated MongoID
+            return room
+        else:
+            print(f"Warning: VNUM {vnum} not found in room_id_mapping.")
+            return None
 
     def _create_payload_and_post(self):
         """
@@ -155,19 +190,3 @@ class Area:
             "name": None
         }
 
-    def _update_room_exits(self):
-        """
-        Update the exits of each room to use Mongo IDs instead of VNUMs.
-        """
-        for room in self.rooms:
-            for direction, exit_data in room.exits.items():
-                to_vnum = exit_data['to_room_vnum']
-                if to_vnum in self.room_id_mapping:
-                    exit_data['to_room_id'] = self.room_id_mapping[to_vnum]
-                    del exit_data['to_room_vnum']
-
-            # Update the room payload with the new exits
-            room_payload = new_room_payload(room.to_dict(), self.area_id)
-            print("UPDATED-ROOM-PAYLOAD=" + str(room_payload))
-            response = post(room_payload, room_api + "room")
-            print("UPDATED-ROOM-RESPONSE=" + str(response))

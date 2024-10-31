@@ -1,103 +1,115 @@
-from pyMud.globals import room_api
-from pyMud.rest import post, generate_mongo_id
+from enum import Enum
+from pyMud.rest import generate_mongo_id
+
+
+def parse_tilde_terminated_lines(lines, index):
+    """
+    Parses lines until a line ending with '~' is found.
+    Returns the concatenated string and the updated index.
+    """
+    num_lines = len(lines)
+    collected_lines = []
+    while index < num_lines:
+        line = lines[index]
+        if line.endswith('~'):
+            collected_lines.append(line.rstrip('~'))
+            index += 1
+            break
+        collected_lines.append(line)
+        index += 1
+    else:
+        raise ValueError("Unexpected end of data while parsing tilde-terminated lines")
+    parsed_text = '\n'.join(collected_lines).strip()
+    return parsed_text, index
 
 
 def parse_exit_data(lines, index):
     num_lines = len(lines)
-    exit = {}
+    exit_data = {
+        'description': '',
+        'keyword': '',
+        'exit_flags': 0,
+        'key': -1,
+        'to_room_vnum': -1,
+    }
 
-    # Description (terminated with ~)
-    description_lines = []
-    while index < num_lines:
-        line = lines[index]
-        if line.endswith('~'):
-            description_lines.append(line.rstrip('~'))
-            index += 1
-            break
-        description_lines.append(line)
-        index += 1
-    else:
-        raise ValueError("Unexpected end of data while parsing exit description")
-
-    exit['description'] = '\n'.join(description_lines).strip()
-
-    # Keywords (terminated with ~)
-    keyword_lines = []
-    while index < num_lines:
-        line = lines[index]
-        if line.endswith('~'):
-            keyword_lines.append(line.rstrip('~'))
-            index += 1
-            break
-        keyword_lines.append(line)
-        index += 1
-    else:
-        raise ValueError("Unexpected end of data while parsing exit keywords")
-
-    exit['keyword'] = ' '.join(keyword_lines).strip()
-
-    # Exit flags, Key VNUM, To Room VNUM
+    exit_data['description'], index = parse_tilde_terminated_lines(lines, index)
+    exit_data['keyword'], index = parse_tilde_terminated_lines(lines, index)
     if index < num_lines:
         exit_info_line = lines[index].strip()
         index += 1
         tokens = exit_info_line.split()
         if len(tokens) >= 3:
             try:
-                exit['exit_flags'] = int(tokens[0], base=16) if tokens[0].isalnum() else 0
+                exit_data['exit_flags'] = int(tokens[0], base=16) if tokens[0].isalnum() else 0
             except ValueError:
-                exit['exit_flags'] = 0
-            exit['key'] = int(tokens[1]) if tokens[1].lstrip('-').isdigit() else -1
-            exit['to_room_vnum'] = int(tokens[2]) if tokens[2].lstrip('-').isdigit() else -1
+                exit_data['exit_flags'] = 0
+            exit_data['key'] = int(tokens[1]) if tokens[1].lstrip('-').isdigit() else -1
+            exit_data['to_room_vnum'] = int(tokens[2]) if tokens[2].lstrip('-').isdigit() else -1
         else:
-            raise ValueError(f"Invalid exit info line: '{exit_info_line}'")
+            print(f"Warning: Invalid exit info line: '{exit_info_line}'. Using default values.")
     else:
-        raise ValueError("Unexpected end of data while parsing exit info")
+        print("Warning: Unexpected end of data while parsing exit info. Using default values.")
 
-    return {'exit': exit, 'index': index}
+    return {'exit': exit_data, 'index': index}
 
 
 def parse_extra_descr(lines, index):
-    num_lines = len(lines)
     extra = {}
-
-    # Keyword(s) (terminated with ~)
-    keyword_lines = []
-    while index < num_lines:
-        line = lines[index]
-        keyword_lines.append(line.rstrip('~'))
-        if line.endswith('~'):
-            index += 1
-            break
-        index += 1
-    else:
-        raise ValueError("Unexpected end of data while parsing extra description keywords")
-
-    extra['keyword'] = ' '.join(keyword_lines).strip()
-
-    # Description (terminated with ~)
-    description_lines = []
-    while index < num_lines:
-        line = lines[index]
-        description_lines.append(line.rstrip('~'))
-        if line.endswith('~'):
-            index += 1
-            break
-        index += 1
-    else:
-        raise ValueError("Unexpected end of data while parsing extra description")
-
-    extra['description'] = '\n'.join(description_lines).strip()
-
+    extra['keyword'], index = parse_tilde_terminated_lines(lines, index)
+    extra['description'], index = parse_tilde_terminated_lines(lines, index)
     return {'extra': extra, 'index': index}
 
 
-class Room:
-    area_id = None
-    room_id = None
-    vnum = None
-    exits = {}
+class SectorType(Enum):
+    INSIDE = 0
+    CITY = 1
+    FIELD = 2
+    FOREST = 3
+    HILLS = 4
+    MOUNTAIN = 5
+    WATER_SWIM = 6
+    WATER_NOSWIM = 7
+    UNDERWATER = 8
+    AIR = 9
+    DESERT = 10
+
+
+class DirectionMapping(Enum):
+    EXIT_NORTH = 0
+    EXIT_EAST = 1
+    EXIT_SOUTH = 2
+    EXIT_WEST = 3
+    EXIT_UP = 4
+    EXIT_DOWN = 5
+
+
+def _extract_vnum(lines, index):
+    vnum_line = lines[index].strip()
+    if not vnum_line.startswith('#'):
+        raise ValueError("Invalid room definition: Missing VNUM")
+    vnum = int(vnum_line[1:])
+    return vnum, index + 1
+
+
+def parse_sector_type(sector_str):
     """
-    A class to parse room data from area files.
+    Parses the sector type string and returns the integer value.
+    Supports both numeric and symbolic constants.
+    """
+    sector_str = sector_str.strip()
+    if sector_str.isdigit():
+        return int(sector_str)
+    elif sector_str.upper() in SectorType.__members__:
+        return SectorType[sector_str.upper()].value
+    else:
+        print(f"Warning: Unknown sector type '{sector_str}'. Using default SECTOR_TYPE 'INSIDE'.")
+        return SectorType.INSIDE.value
+
+
+class Room:
+    """
+    A class to parse room data from area files and conform to the Lombok Data class structure.
     """
 
     ROOM_FLAG_BITS = {
@@ -129,136 +141,80 @@ class Room:
         'Z': 1 << 25,
     }
 
-    SECTOR_TYPES = {
-        'INSIDE': 0,
-        'CITY': 1,
-        'FIELD': 2,
-        'FOREST': 3,
-        'HILLS': 4,
-        'MOUNTAIN': 5,
-        'WATER_SWIM': 6,
-        'WATER_NOSWIM': 7,
-        'UNDERWATER': 8,
-        'AIR': 9,
-        'DESERT': 10,
-    }
-
-    def __init__(self, area_id, data):
+    def __init__(self, area_id, data, room_id=None):
         """
-        Initializes the RoomParser with the area data.
+        Initializes the Room object with the area data.
         """
         self.area_id = area_id
-        self.room_id = generate_mongo_id()
+        self.id = room_id or generate_mongo_id()
         self.data = data
-        self.exits = {}  # Initialize exits dictionary
-        room = self.extract_room_fields(self.data)
-        self.vnum = room['vnum']
-        self.extra_descr = room['extra_descr']
-        print("ROOM=" + str(room))
+        self.vnum = None
+        self.name = ''
+        self.description = ''
+        self.tele_delay = 0
+        self.room_flags = 0
+        self.sector_type = 0
+        self.extra_descr = []
+        self.exits = {}
+        self.exitNorth = None
+        self.exitEast = None
+        self.exitSouth = None
+        self.exitWest = None
+        self.exitUp = None
+        self.exitDown = None
 
-        # Initially create the room without exits
-        room_payload = self.to_dict()  # Convert room to dictionary for payload
-        room_payload['id'] = self.room_id  # Add generated Mongo ID to payload
-        print("ROOM-PAYLOAD=" + str(room_payload))
-        response = post(room_payload, room_api + "room")
-        print("ROOM-RESPONSE=" + str(response))
+        self.extract_room_fields(self.data)
 
     def extract_room_fields(self, lines):
         """
-        Extracts room data from the given lines representing a single room.
+        Extracts room data from the given lines representing a single room and sets instance variables.
         """
-        room = {}
         index = 0
-        num_lines = len(lines)
-        vnum_line = lines[index].strip()
-        if vnum_line.startswith('#'):
-            room_vnum = int(vnum_line[1:])
-            room['vnum'] = room_vnum
-            print(f"Parsing room VNUM: {room_vnum}")
-            index += 1
-        else:
-            raise ValueError("Invalid room definition: Missing VNUM")
+        self.vnum, index = _extract_vnum(lines, index)
+        self.name, index = parse_tilde_terminated_lines(lines, index)
+        self.description, index = parse_tilde_terminated_lines(lines, index)
+        flags_data, index = self._extract_flags(lines, index, self.vnum)
+        self.tele_delay = flags_data['tele_delay']
+        self.room_flags = flags_data['room_flags']
+        self.sector_type = flags_data['sector_type']
+        self.exits, self.extra_descr, index = self._extract_exits_and_extras(lines, index)
 
-        # Name (terminated with ~)
-        name_lines = []
-        while index < num_lines:
-            line = lines[index]
-            if line.endswith('~'):
-                name_lines.append(line.rstrip('~'))
-                index += 1
-                break
-            name_lines.append(line)
-            index += 1
-        else:
-            raise ValueError(f"Unexpected end of data while parsing room name for room VNUM: {room_vnum}")
+    def _extract_flags(self, lines, index, vnum):
+        if index >= len(lines):
+            raise ValueError(f"Unexpected end of data while parsing room flags for room VNUM: {vnum}")
+        tokens = lines[index].strip().split()
+        if len(tokens) >= 3:
+            tele_delay = int(tokens[0]) if tokens[0].isdigit() else 0
+            room_flags = self.parse_room_flags(tokens[1])
+            sector_type = parse_sector_type(tokens[2])
+            index += 1  # Advance the index after processing the flags line
+            return {'tele_delay': tele_delay, 'room_flags': room_flags, 'sector_type': sector_type}, index
+        print(f"Warning: Invalid room flags line: '{lines[index]}'. Setting default values.")
+        index += 1  # Advance the index even if the line is invalid
+        return {'tele_delay': 0, 'room_flags': 0, 'sector_type': SectorType.INSIDE.value}, index
 
-        room['name'] = '\n'.join(name_lines).strip()
-
-        # Description (terminated with ~)
-        description_lines = []
-        while index < num_lines:
-            line = lines[index]
-            if line.endswith('~'):
-                description_lines.append(line.rstrip('~'))
-                index += 1
-                break
-            description_lines.append(line)
-            index += 1
-        else:
-            raise ValueError(f"Unexpected end of data while parsing room description for room VNUM: {room_vnum}")
-
-        room['description'] = '\n'.join(description_lines).strip()
-
-        # Teleport Delay, Room Flags, Sector Type
-        if index < num_lines:
-            flags_line = lines[index].strip()
-            index += 1
-            tokens = flags_line.split()
-            if len(tokens) >= 3:
-                tele_delay_str = tokens[0]
-                if tele_delay_str.isdigit():
-                    tele_delay = int(tele_delay_str)
-                else:
-                    tele_delay = 0  # Default value if parsing fails
-
-                room_flags = self.parse_room_flags(tokens[1])
-                sector_type = self.parse_sector_type(tokens[2])
-
-                room['tele_delay'] = tele_delay
-                room['room_flags'] = room_flags
-                room['sector_type'] = sector_type
-            else:
-                print(f"Warning: Invalid room flags line: '{flags_line}'. Setting default values.")
-                room['tele_delay'] = 0
-                room['room_flags'] = 0
-                room['sector_type'] = self.SECTOR_TYPES['INSIDE']
-        else:
-            raise ValueError(f"Unexpected end of data while parsing room flags for room VNUM: {room_vnum}")
-
-        # Initialize exits and extra descriptions
-        room['exits'] = {}
-        room['extra_descr'] = []
-
-        # Parse optional extra descriptions and exits
-        while index < num_lines:
+    @staticmethod
+    def _extract_exits_and_extras(lines, index):
+        exits, extra_descr = {}, []
+        while index < len(lines):
             line = lines[index].strip()
-            if line == 'S':  # End of room definition
+            if line == 'S':
                 index += 1
                 break
-            elif line.startswith('D') and len(line) > 1 and line[1].isdigit():  # Exit definition
-                direction = int(line[1])  # Door number
-                index += 1  # Move to the next line for parsing exit data
+            elif line.startswith('D') and len(line) > 1 and line[1].isdigit():
+                direction = int(line[1])
+                index += 1
                 exit_data = parse_exit_data(lines, index)
-                index = exit_data['index']  # Update index after parsing exit
-                room['exits'][direction] = exit_data['exit']
-                self.exits[direction] = exit_data['exit']  # Update the exits attribute of the Room object
-            elif line == 'E':  # Extra description
-                index += 1  # Move to the next line for parsing extra description
-                extra_descr = parse_extra_descr(lines, index)
-                index = extra_descr['index']
-                room['extra_descr'].append(extra_descr['extra'])
-
-        return room
+                index = exit_data['index']
+                exits[direction] = exit_data['exit']
+            elif line == 'E':
+                index += 1
+                extra_descr_data = parse_extra_descr(lines, index)
+                index = extra_descr_data['index']
+                extra_descr.append(extra_descr_data['extra'])
+            else:
+                index += 1
+        return exits, extra_descr, index
 
     def parse_room_flags(self, flags_str):
         """
@@ -282,55 +238,3 @@ class Room:
                     raise ValueError(f"Unknown room flag character: {char}")
         return flags
 
-    def parse_sector_type(self, sector_str):
-        """
-        Parses the sector type string and returns the integer value.
-        Supports both numeric and symbolic constants.
-        """
-        sector_str = sector_str.strip()
-        if sector_str.isdigit():
-            return int(sector_str)
-        elif sector_str.upper() in self.SECTOR_TYPES:
-            return self.SECTOR_TYPES[sector_str.upper()]
-        else:
-            print(f"Warning: Unknown sector type '{sector_str}'. Using default SECTOR_TYPES['INSIDE'].")
-            return self.SECTOR_TYPES['INSIDE']  # Default sector type
-
-    def to_dict(self):
-        """
-        Converts the Room object to a dictionary for payload purposes.
-        """
-        return {
-            'areaId': self.area_id,
-            'vnum': self.vnum,
-            'name': self.data[1],  # Corrected index for name
-            'description': self.data[2],  # Corrected index for description
-            'tele_delay': self.data[3],  # Corrected index for tele_delay
-            'room_flags': self.data[4],  # Corrected index for room_flags
-            'sector_type': self.data[5],  # Corrected index for sector_type
-            'exits': {direction: {
-                'to_room_vnum': exit_info.get('to_room_vnum', None),
-                'exit_flags': exit_info.get('exit_flags', 0),
-                'key': exit_info.get('key', -1),
-                'description': exit_info.get('description', ''),
-                'keyword': exit_info.get('keyword', '')
-            } for direction, exit_info in self.exits.items()},
-            'extra_descr': self.extra_descr
-        }
-
-    def update_exits(self, room_id_mapping):
-        """
-        Updates the room exits with Mongo IDs instead of VNUMs.
-        """
-        for direction, exit_data in self.exits.items():
-            if 'to_room_vnum' in exit_data:
-                to_vnum = exit_data['to_room_vnum']
-                if to_vnum in room_id_mapping:
-                    exit_data['to_room_id'] = room_id_mapping[to_vnum]
-                    del exit_data['to_room_vnum']
-
-        # Update the room payload with the new exits
-        room_payload = self.to_dict()
-        print("UPDATED-ROOM-PAYLOAD=" + str(room_payload))
-        response = post(room_payload, room_api + "room")
-        print("UPDATED-ROOM-RESPONSE=" + str(response))

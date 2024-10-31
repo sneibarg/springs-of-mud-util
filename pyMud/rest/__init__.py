@@ -1,7 +1,6 @@
 import json
 import random
 import time
-
 import requests
 
 
@@ -69,35 +68,42 @@ def new_area_payload(area):
     return payload
 
 
-def new_room_payload(room, area_id):
+def new_room_payload(room, area_id, room_id_mapping):
+    from pyMud.migrate.Room import DirectionMapping
     """
-    Return a payload for creating a new room document in MongoDB.
+    Return a payload for creating a new room document in MongoDB, conforming to the given Lombok Data class.
     """
+
+    def get_exit_room_id(direction):
+        """
+        Safely retrieves the MongoDB ID for the room in the given direction.
+        """
+        exit_info = room.exits.get(direction)
+        if exit_info:
+            to_room_vnum = exit_info.get('to_room_vnum')
+            if to_room_vnum is not None:
+                return room_id_mapping.get(to_room_vnum)
+        return None
+
     payload = {
         'areaId': area_id,
-        'vnum': room['vnum'],
-        'name': room['name'],
-        'description': room['description'],
-        'tele_delay': room['tele_delay'],
-        'room_flags': room['room_flags'],
-        'sector_type': room['sector_type'],
+        'vnum': str(room.vnum),
+        'name': room.name,
+        'description': room.description,
         'spawn': False,
         'spawnTimer': 60000,
-        'mobiles': [],
-        'exits': {},
-        'extra_descr': room['extra_descr'],
         'spawnTime': 0,
+        'mobiles': [],
         'alternateRoutes': [],
-        'pvp': False
+        'pvp': 'false',
+        'id': room.id,
+        'exitNorth': get_exit_room_id(DirectionMapping.EXIT_NORTH.value),
+        'exitEast': get_exit_room_id(DirectionMapping.EXIT_EAST.value),
+        'exitSouth': get_exit_room_id(DirectionMapping.EXIT_SOUTH.value),
+        'exitWest': get_exit_room_id(DirectionMapping.EXIT_WEST.value),
+        'exitUp': get_exit_room_id(DirectionMapping.EXIT_UP.value),
+        'exitDown': get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
     }
-    for direction, exit_info in room['exits'].items():
-        payload['exits'][direction] = {
-            'to_room_vnum': exit_info['to_room_vnum'],
-            'exit_flags': exit_info['exit_flags'],
-            'key': exit_info['key'],
-            'description': exit_info['description'],
-            'keyword': exit_info['keyword']
-        }
     return payload
 
 
