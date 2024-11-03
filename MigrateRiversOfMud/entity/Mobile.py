@@ -1,4 +1,4 @@
-from pyMud.rest import generate_mongo_id
+from MigrateRiversOfMud.http import generate_mongo_id
 
 
 class Mobile:
@@ -28,7 +28,7 @@ class Mobile:
 
         try:
             self._parse_mobile_data(data)
-            print("NEW-MOBILE="+str(self.to_dict()))
+            # print("NEW-MOBILE="+str(self.to_dict()))
         except ValueError as e:
             print(f"Error while parsing mobile data: {e}")
 

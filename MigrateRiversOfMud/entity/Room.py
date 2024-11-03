@@ -1,5 +1,5 @@
 from enum import Enum
-from pyMud.rest import generate_mongo_id
+from MigrateRiversOfMud.http import generate_mongo_id
 
 
 def parse_tilde_terminated_lines(lines, index):
