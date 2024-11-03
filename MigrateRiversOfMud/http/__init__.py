@@ -3,13 +3,16 @@ import random
 import time
 import requests
 
-area_api = "http://dragon:8082/api/v1/"
-room_api = "http://dragon:8083/api/v1/"
-mobile_api = "http://dragon:8084/api/v1/"
-item_api = "http://dragon:8085/api/v1/"
-shop_api = "http://dragon:8086/api/v1/"
-reset_api = "http://dragon:8087/api/v1/"
-specials_api = "http://dragon:8088/api/v1/"
+api_endpoints = {
+    'area': "http://dragon:8082/api/v1/",
+    'room': "http://dragon:8083/api/v1/",
+    'mobile': "http://dragon:8084/api/v1/",
+    'item': "http://dragon:8085/api/v1/",
+    'shop': "http://dragon:8086/api/v1/",
+    'reset': "http://dragon:8087/api/v1/",
+    'special': "http://dragon:8088/api/v1/"
+}
+
 headers = {
     'Content-Type': 'application/json'
 }

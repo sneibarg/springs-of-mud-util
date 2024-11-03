@@ -7,8 +7,7 @@ from MigrateRiversOfMud.entity.Room import Room
 from MigrateRiversOfMud.entity.Item import Item
 from MigrateRiversOfMud.entity.Shop import Shop
 from MigrateRiversOfMud.entity.Special import Special
-from MigrateRiversOfMud.http import area_api, room_api, mobile_api, item_api, post, generate_mongo_id, shop_api, \
-    reset_api, specials_api
+from MigrateRiversOfMud.http import generate_mongo_id, post, api_endpoints
 from MigrateRiversOfMud.logging import setup_logger
 
 
@@ -190,7 +189,6 @@ class Area:
         """
         Creates a Reset object, assigns its pre-generated MongoID, and returns the Reset.
         """
-        # print("RESET-DATA="+str(reset_data))
         return Reset(self.id, reset_data)
 
     def _create_shop(self, shop_data):
@@ -236,7 +234,7 @@ class Area:
 
         payload = self.to_dict()
         payload['totalRooms'] = self.total_rooms
-        response = post(payload, area_api + "areas")
+        response = post(payload, api_endpoints['area'] + "areas")
         if not response:
             self.logger.error("Failed posting to Area API endpoint: {response}")
             return None
@@ -247,7 +245,7 @@ class Area:
         Posts Room objects to the API endpoint.
         """
         for room in self.rooms:
-            response = post(room.to_dict(), room_api + "room")
+            response = post(room.to_dict(), api_endpoints['room'] + "room")
             if not response:
                 self.logger.error("Failed posting to Room API endpoint: {response}")
 
@@ -256,7 +254,7 @@ class Area:
         Posts Mobile objects to the API endpoint.
         """
         for mobile in self.mobiles:
-            response = post(mobile.to_dict(), mobile_api + "mobile")
+            response = post(mobile.to_dict(), api_endpoints['mobile'] + "mobile")
             if not response:
                 self.logger.error("Failed posting to Mobile API endpoint: {response}")
 
@@ -265,7 +263,7 @@ class Area:
         Posts Item objects to the API endpoint.
         """
         for item in self.objects:
-            response = post(item.to_dict(), item_api + "item")
+            response = post(item.to_dict(), api_endpoints['item'] + "item")
             if not response:
                 self.logger.error("Failed to post to Item API endpoint: " + str(response))
 
@@ -274,7 +272,7 @@ class Area:
         Posts Shop objects to the API endpoint.
         """
         for shop in self.shops:
-            response = post(shop.to_dict(), shop_api + "shop")
+            response = post(shop.to_dict(), api_endpoints['shop'] + "shop")
             if not response:
                 self.logger.error("Failed to post to Shop API endpoint: " + str(response))
 
@@ -283,7 +281,7 @@ class Area:
         Posts Reset objects to the API endpoint.
         """
         for reset in self.resets:
-            response = post(reset.to_dict(), reset_api + "reset")
+            response = post(reset.to_dict(), api_endpoints['reset'] + "reset")
             if not response:
                 self.logger.error("Failed to post to Shop API endpoint: " + str(response))
 
@@ -292,8 +290,7 @@ class Area:
         Posts Special objects to the API endpoint.
         """
         for special in self.specials:
-            self.logger.info("SPECIAL-PAYLOAD="+str(special.to_dict()))
-            response = post(special.to_dict(), specials_api + "special")
+            response = post(special.to_dict(), api_endpoints['special'] + "special")
             if not response:
                 self.logger.error("Failed to post to Special API endpoint: " + str(response))
 
