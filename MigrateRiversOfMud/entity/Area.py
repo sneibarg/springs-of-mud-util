@@ -1,6 +1,5 @@
 import json
 import re
-import sys
 
 from MigrateRiversOfMud.entity.Mobile import Mobile
 from MigrateRiversOfMud.entity.Room import Room
@@ -203,7 +202,7 @@ class Area:
         payload['totalRooms'] = self.total_rooms
         response = post(payload, area_api + "areas")
         if not response:
-            print(f"Failed posting to Area API endpoint: {response.status_code}")
+            print(f"Failed posting to Area API endpoint: {response}")
             return None
         return json.loads(response.content)
 
@@ -214,7 +213,7 @@ class Area:
         for room in self.rooms:
             response = post(room.to_dict(), room_api + "room")
             if not response:
-                print(f"Failed posting to Room API endpoint: {response.status_code}")
+                print(f"Failed posting to Room API endpoint: {response}")
 
     def insert_mobiles(self):
         """
@@ -223,7 +222,7 @@ class Area:
         for mobile in self.mobiles:
             response = post(mobile.to_dict(), mobile_api + "mobile")
             if not response:
-                print(f"Failed posting to Mobile API endpoint: {response.status_code}")
+                print(f"Failed posting to Mobile API endpoint: {response}")
 
     def insert_objects(self):
         """

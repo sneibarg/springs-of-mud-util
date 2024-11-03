@@ -94,7 +94,6 @@ class Item:
             line = lines[index].strip()
             if line.endswith('~'):
                 return line.rstrip('~').strip()
-        # Handle case where tilde is missing, avoid throwing an error
         print(f"Warning: Unexpected end of data while parsing item string at index {index}")
         return ""
 

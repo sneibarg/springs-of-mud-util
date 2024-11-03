@@ -38,7 +38,6 @@ class Mobile:
         """
         index = 1
         self.vnum = lines[0][1:]
-        # Name, short description, long description, description (each terminated with ~)
         self.name = self._parse_terminated_string(lines, index)
         index += 1
         self.short_descr = self._parse_terminated_string(lines, index)

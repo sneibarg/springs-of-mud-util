@@ -16,3 +16,9 @@ def add_space_around_operators(code):
                        reverse=True)  # sort by length in descending order to match longer operators first
     pattern = '|'.join(map(re.escape, operators))  # create a pattern by joining all operators with '|'
     return re.sub('({})'.format(pattern), r' \1 ', code)
+
+
+def migrate_rom(area_dir):
+    from MigrateRiversOfMud.entity import Orchestrator
+    orchestrator = Orchestrator(area_dir)
+    orchestrator.run()
