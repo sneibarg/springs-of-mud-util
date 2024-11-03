@@ -1,6 +1,6 @@
 import os
 import multiprocessing
-
+import time
 from MigrateRiversOfMud.entity.Area import Area
 
 
@@ -29,8 +29,11 @@ class Orchestrator:
         """
         Use a process pool to process area files in parallel.
         """
+        start_time = time.time()
         with multiprocessing.Pool(self.cpu_count) as pool:
             pool.map(self.process_area_file, self.area_files)
+        end_time = time.time()
+        print(f"Orchestrator run completed in {end_time - start_time:.2f} seconds.")
 
 
 

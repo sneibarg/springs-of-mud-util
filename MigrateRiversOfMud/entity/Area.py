@@ -4,11 +4,13 @@ import re
 from MigrateRiversOfMud.entity.Mobile import Mobile
 from MigrateRiversOfMud.entity.Room import Room
 from MigrateRiversOfMud.entity.Item import Item
-from MigrateRiversOfMud.http import area_api, room_api, mobile_api, item_api, post, generate_mongo_id
+from MigrateRiversOfMud.entity.Shop import Shop
+from MigrateRiversOfMud.http import area_api, room_api, mobile_api, item_api, post, generate_mongo_id, shop_api
+from MigrateRiversOfMud.logging import setup_logger
 
 
 class Area:
-    def __init__(self, area_file):
+    def __init__(self, area_file, log_dir='logs'):
         self.author = None
         self.name = None
         self.id = generate_mongo_id()
@@ -23,6 +25,7 @@ class Area:
         self.specials = []
         self.room_id_mapping = {}
 
+        self.logger = setup_logger("Area", log_dir)
         self._initialize_file(area_file)
         self._initialize_sections()
         self.total_rooms = len(self.rooms)
@@ -30,6 +33,7 @@ class Area:
         self.insert_rooms()
         self.insert_objects()
         self.insert_mobiles()
+        self.insert_shops()
 
     def _initialize_file(self, area_file):
         with open(area_file, 'r') as f:
@@ -80,12 +84,13 @@ class Area:
         room_lines = self._split_rooms(sections['ROOMS'])
         mobile_lines = self._split_entities(sections['MOBILES'], 'MOBILES')
         object_lines = self._split_entities(sections['OBJECTS'], 'OBJECTS')
+        shop_lines = self._split_entities(sections['SHOPS'], 'SHOPS')
 
         self._pre_generate_room_ids(room_lines)
         self.rooms = [self._create_room(room_data) for room_data in room_lines if self._is_valid_room(room_data)]
         self.mobiles = [self._create_mobile(mobile_data) for mobile_data in mobile_lines]
         self.objects = [self._create_object(object_data) for object_data in object_lines]
-        self.shops = sections['SHOPS']
+        self.shops = [self._create_shop(shop_data) for shop_data in shop_lines]
         self.resets = sections['RESETS']
         self.specials = sections['SPECIALS']
 
@@ -94,7 +99,7 @@ class Area:
         Iterates through all the rooms and pre-generates a MongoID for each VNUM.
         """
         for room_data in room_sections:
-            vnum = self._extract_vnum_from_room_data(room_data)
+            vnum = self._extract_vnum(room_data)
             if vnum is not None:
                 mongo_id = generate_mongo_id()
                 self.room_id_mapping[vnum] = mongo_id
@@ -152,7 +157,7 @@ class Area:
         return any(vnum_pattern.match(line) for line in room_data)
 
     @staticmethod
-    def _extract_vnum_from_room_data(room_data):
+    def _extract_vnum(room_data):
         """
         Extracts the VNUM from the room data.
         """
@@ -162,6 +167,12 @@ class Area:
             if match:
                 return int(match.group(1))
         return None
+
+    def _create_shop(self, shop_data):
+        """
+        Creates a Shop object, assigns its pre-generated MongoID, and returns the Shop.
+        """
+        return Shop(self.id, shop_data)
 
     def _create_mobile(self, mobile_data):
         """
@@ -179,11 +190,11 @@ class Area:
         """
         Creates a Room object, assigns its pre-generated MongoID, and returns the Room.
         """
-        vnum = self._extract_vnum_from_room_data(room_data)
+        vnum = self._extract_vnum(room_data)
         if vnum is not None and vnum in self.room_id_mapping:
             return Room(self, room_data, self.room_id_mapping[vnum])
         else:
-            print(f"Warning: VNUM {vnum} not found in room_id_mapping.")
+            self.logger.warning(f"VNUM {vnum} not found in room_id_mapping.")
             return None
 
     def insert_area(self):
@@ -202,7 +213,7 @@ class Area:
         payload['totalRooms'] = self.total_rooms
         response = post(payload, area_api + "areas")
         if not response:
-            print(f"Failed posting to Area API endpoint: {response}")
+            self.logger.error(f"Failed posting to Area API endpoint: {response}")
             return None
         return json.loads(response.content)
 
@@ -213,7 +224,7 @@ class Area:
         for room in self.rooms:
             response = post(room.to_dict(), room_api + "room")
             if not response:
-                print(f"Failed posting to Room API endpoint: {response}")
+                self.logger.error(f"Failed posting to Room API endpoint: {response}")
 
     def insert_mobiles(self):
         """
@@ -222,7 +233,7 @@ class Area:
         for mobile in self.mobiles:
             response = post(mobile.to_dict(), mobile_api + "mobile")
             if not response:
-                print(f"Failed posting to Mobile API endpoint: {response}")
+                self.logger.error(f"Failed posting to Mobile API endpoint: {response}")
 
     def insert_objects(self):
         """
@@ -231,7 +242,16 @@ class Area:
         for item in self.objects:
             response = post(item.to_dict(), item_api + "item")
             if not response:
-                print(f"Failed to post to Item API endpoint: "+str(response))
+                self.logger.error(f"Failed to post to Item API endpoint: "+str(response))
+
+    def insert_shops(self):
+        """
+        Posts Shop objects to the API endpoint.
+        """
+        for shop in self.shops:
+            response = post(shop.to_dict(), shop_api + "shop")
+            if not response:
+                self.logger.error(f"Failed to post to Shop API endpoint: "+str(response))
 
     def to_dict(self):
         """

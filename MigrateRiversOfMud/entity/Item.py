@@ -1,8 +1,9 @@
 from MigrateRiversOfMud.http import generate_mongo_id
+from MigrateRiversOfMud.logging import setup_logger
 
 
 class Item:
-    def __init__(self, area_id, data):
+    def __init__(self, area_id, data, log_dir='logs'):
         """
         Initializes the Item object with the area data.
         """
@@ -21,11 +22,12 @@ class Item:
         self.level = None
         self.affect_data = []
         self.extra_descr = []
+        self.logger = setup_logger("Item", log_dir)
 
         try:
             self._parse_item_data(data)
         except ValueError as e:
-            print(f"Error while parsing item data: {e}")
+            self.logger.error(f"Error while parsing item data: {e}")
 
     def _parse_item_data(self, lines):
         """
@@ -34,15 +36,17 @@ class Item:
         index = 1
         self.vnum = lines[0][1:]
 
-        self.name = self._parse_terminated_string(lines, index)
+        # Name, short description, long description, description (each terminated with ~)
+        self.name = self._parse_terminated_string(self.logger, lines, index)
         index += 1
-        self.short_descr = self._parse_terminated_string(lines, index)
+        self.short_descr = self._parse_terminated_string(self.logger, lines, index)
         index += 1
-        self.long_descr = self._parse_terminated_string(lines, index)
+        self.long_descr = self._parse_terminated_string(self.logger, lines, index)
         index += 1
-        self.description = self._parse_terminated_string(lines, index)
+        self.description = self._parse_terminated_string(self.logger, lines, index)
         index += 1
 
+        # Item type, extra flags, wear flags
         if index < len(lines):
             tokens = lines[index].split()
             if len(tokens) >= 3:
@@ -51,11 +55,12 @@ class Item:
                 self.wear_flags = tokens[2]
                 index += 1
             else:
-                print("Warning: Invalid item flags line, setting defaults.")
+                self.logger.warning("Invalid item flags line, setting defaults.")
                 self.item_type = "unknown"
                 self.extra_flags = 0
                 self.wear_flags = 0
 
+        # Value, weight, level, affect data, extra descriptions
         while index < len(lines):
             line = lines[index].strip()
             if line.startswith('A'):
@@ -65,9 +70,9 @@ class Item:
             elif line.startswith('E'):
                 extra_descr = {}
                 index += 1
-                extra_descr['keyword'] = self._parse_terminated_string(lines, index)
+                extra_descr['keyword'] = self._parse_terminated_string(self.logger, lines, index)
                 index += 1
-                extra_descr['description'] = self._parse_terminated_string(lines, index)
+                extra_descr['description'] = self._parse_terminated_string(self.logger, lines, index)
                 index += 1
                 self.extra_descr.append(extra_descr)
             else:
@@ -86,7 +91,7 @@ class Item:
         return lines[index].strip()
 
     @staticmethod
-    def _parse_terminated_string(lines, index):
+    def _parse_terminated_string(logger, lines, index):
         """
         Parses a string terminated with a tilde (~).
         """
@@ -94,7 +99,8 @@ class Item:
             line = lines[index].strip()
             if line.endswith('~'):
                 return line.rstrip('~').strip()
-        print(f"Warning: Unexpected end of data while parsing item string at index {index}")
+        # Handle case where tilde is missing, avoid throwing an error
+        logger.error(f"Warning: Unexpected end of data while parsing item string at index {index}")
         return ""
 
     def to_dict(self):
@@ -115,6 +121,6 @@ class Item:
             'weight': self.weight,
             'level': self.level,
             'affectData': self.affect_data,
-            'extraDescr': [ed['keyword'] for ed in self.extra_descr],
+            'extraDescr': [ed['keyword'] for ed in self.extra_descr],  # Convert extra descriptions to list of keywords
             'id': self.id
         }

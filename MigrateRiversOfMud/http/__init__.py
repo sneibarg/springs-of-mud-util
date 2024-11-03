@@ -7,6 +7,7 @@ area_api = "http://dragon:8082/api/v1/"
 room_api = "http://dragon:8083/api/v1/"
 mobile_api = "http://dragon:8084/api/v1/"
 item_api = "http://dragon:8085/api/v1/"
+shop_api = "http://dragon:8086/api/v1/"
 headers = {
     'Content-Type': 'application/json'
 }

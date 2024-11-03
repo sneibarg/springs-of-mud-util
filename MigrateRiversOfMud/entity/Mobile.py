@@ -1,8 +1,9 @@
 from MigrateRiversOfMud.http import generate_mongo_id
+from MigrateRiversOfMud.logging import setup_logger
 
 
 class Mobile:
-    def __init__(self, area_id, data):
+    def __init__(self, area_id, data, log_dir='logs'):
         """
         Initializes the Mobile object with the area data.
         """
@@ -25,12 +26,12 @@ class Mobile:
         self.start_pos = None
         self.default_pos = None
         self.flags = None
+        self.logger = setup_logger("Mobile", log_dir)
 
         try:
             self._parse_mobile_data(data)
-            # print("NEW-MOBILE="+str(self.to_dict()))
         except ValueError as e:
-            print(f"Error while parsing mobile data: {e}")
+            self.logger.error(f"Error while parsing mobile data: {e}")
 
     def _parse_mobile_data(self, lines):
         """
@@ -38,13 +39,16 @@ class Mobile:
         """
         index = 1
         self.vnum = lines[0][1:]
+        # Name, short description, long description, description (each terminated with ~)
         self.name = self._parse_terminated_string(lines, index)
         index += 1
         self.short_descr = self._parse_terminated_string(lines, index)
         index += 1
         self.long_descr, index = self._parse_multiline_terminated_string(lines, index)
         self.description, index = self._parse_multiline_terminated_string(lines, index)
+        self.logger.debug(f"Mobile name {self.name} and short description {self.short_descr}")
 
+        # Act flags, affect flags, alignment
         if index < len(lines):
             tokens = lines[index].split()
             if len(tokens) >= 3 and tokens[0].isdigit():
@@ -53,11 +57,12 @@ class Mobile:
                 self.alignment = int(tokens[2])
                 index += 1
             else:
-                print("Warning: Invalid mobile flags line, setting defaults.")
+                self.logger.warning("Invalid mobile flags line, setting defaults.")
                 self.act_flags = 0
                 self.affect_flags = 0
                 self.alignment = 0
 
+        # Level, hitroll, damage, race, sex, gold, start_pos, default_pos, flags
         if index < len(lines):
             tokens = lines[index].split()
             if len(tokens) >= 9:
@@ -71,7 +76,7 @@ class Mobile:
                 self.default_pos = int(tokens[7])
                 self.flags = int(tokens[8])
             else:
-                print("Warning: Invalid mobile attributes line, setting defaults.")
+                self.logger.warning("Invalid mobile attributes line, setting defaults.")
                 self.level = 0
                 self.hitroll = 0
                 self.damage = "0d0+0"
@@ -96,11 +101,10 @@ class Mobile:
                     return line.strip()  # Handle apostrophes gracefully
             raise ValueError("Unexpected end of data while parsing mobile string")
         except ValueError as e:
-            print(f"Warning: {e}")
+            lines.logger.warning(f"{e}")
             return ""
 
-    @staticmethod
-    def _parse_multiline_terminated_string(lines, index):
+    def _parse_multiline_terminated_string(self, lines, index):
         """
         Parses a multiline string terminated with a tilde (~).
         """
