@@ -8,6 +8,8 @@ room_api = "http://dragon:8083/api/v1/"
 mobile_api = "http://dragon:8084/api/v1/"
 item_api = "http://dragon:8085/api/v1/"
 shop_api = "http://dragon:8086/api/v1/"
+reset_api = "http://dragon:8087/api/v1/"
+specials_api = "http://dragon:8088/api/v1/"
 headers = {
     'Content-Type': 'application/json'
 }

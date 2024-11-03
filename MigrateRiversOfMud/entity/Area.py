@@ -2,10 +2,13 @@ import json
 import re
 
 from MigrateRiversOfMud.entity.Mobile import Mobile
+from MigrateRiversOfMud.entity.Resets import Reset
 from MigrateRiversOfMud.entity.Room import Room
 from MigrateRiversOfMud.entity.Item import Item
 from MigrateRiversOfMud.entity.Shop import Shop
-from MigrateRiversOfMud.http import area_api, room_api, mobile_api, item_api, post, generate_mongo_id, shop_api
+from MigrateRiversOfMud.entity.Special import Special
+from MigrateRiversOfMud.http import area_api, room_api, mobile_api, item_api, post, generate_mongo_id, shop_api, \
+    reset_api, specials_api
 from MigrateRiversOfMud.logging import setup_logger
 
 
@@ -34,6 +37,8 @@ class Area:
         self.insert_objects()
         self.insert_mobiles()
         self.insert_shops()
+        self.insert_specials()
+        self.insert_resets()
 
     def _initialize_file(self, area_file):
         with open(area_file, 'r') as f:
@@ -73,11 +78,13 @@ class Area:
 
             if current_section in sections:
                 sections[current_section].append(line)
+        if current_section == "RESETS":
+            del sections[current_section][0]
         return sections
 
     def _initialize_sections(self):
         """
-        Extracts different sections from the area data by splitting it into individual sections,
+        Extracts each section of the area by splitting it into individual sections;
         pre-generates MongoIDs for each VNUM, and parses each section independently.
         """
         sections = self._split_sections()
@@ -86,13 +93,18 @@ class Area:
         object_lines = self._split_entities(sections['OBJECTS'], 'OBJECTS')
         shop_lines = self._split_entities(sections['SHOPS'], 'SHOPS')
 
+        if len(sections['RESETS']) > 0:
+            del sections['RESETS'][0]
+        if len(sections['SPECIALS']) > 0:
+            del sections['SPECIALS'][0]
+
         self._pre_generate_room_ids(room_lines)
         self.rooms = [self._create_room(room_data) for room_data in room_lines if self._is_valid_room(room_data)]
         self.mobiles = [self._create_mobile(mobile_data) for mobile_data in mobile_lines]
         self.objects = [self._create_object(object_data) for object_data in object_lines]
         self.shops = [self._create_shop(shop_data) for shop_data in shop_lines]
-        self.resets = sections['RESETS']
-        self.specials = sections['SPECIALS']
+        self.resets = [self._create_reset(line) for line in sections['RESETS']]
+        self.specials = [self._create_special(line) for line in sections['SPECIALS']]
 
     def _pre_generate_room_ids(self, room_sections):
         """
@@ -168,6 +180,19 @@ class Area:
                 return int(match.group(1))
         return None
 
+    def _create_special(self, special_data):
+        """
+        Creates a Special object, assigns its pre-generated MongoID, and returns the Special.
+        """
+        return Special(self.id, special_data)
+
+    def _create_reset(self, reset_data):
+        """
+        Creates a Reset object, assigns its pre-generated MongoID, and returns the Reset.
+        """
+        # print("RESET-DATA="+str(reset_data))
+        return Reset(self.id, reset_data)
+
     def _create_shop(self, shop_data):
         """
         Creates a Shop object, assigns its pre-generated MongoID, and returns the Shop.
@@ -213,7 +238,7 @@ class Area:
         payload['totalRooms'] = self.total_rooms
         response = post(payload, area_api + "areas")
         if not response:
-            self.logger.error(f"Failed posting to Area API endpoint: {response}")
+            self.logger.error("Failed posting to Area API endpoint: {response}")
             return None
         return json.loads(response.content)
 
@@ -224,7 +249,7 @@ class Area:
         for room in self.rooms:
             response = post(room.to_dict(), room_api + "room")
             if not response:
-                self.logger.error(f"Failed posting to Room API endpoint: {response}")
+                self.logger.error("Failed posting to Room API endpoint: {response}")
 
     def insert_mobiles(self):
         """
@@ -233,7 +258,7 @@ class Area:
         for mobile in self.mobiles:
             response = post(mobile.to_dict(), mobile_api + "mobile")
             if not response:
-                self.logger.error(f"Failed posting to Mobile API endpoint: {response}")
+                self.logger.error("Failed posting to Mobile API endpoint: {response}")
 
     def insert_objects(self):
         """
@@ -242,7 +267,7 @@ class Area:
         for item in self.objects:
             response = post(item.to_dict(), item_api + "item")
             if not response:
-                self.logger.error(f"Failed to post to Item API endpoint: "+str(response))
+                self.logger.error("Failed to post to Item API endpoint: " + str(response))
 
     def insert_shops(self):
         """
@@ -251,7 +276,26 @@ class Area:
         for shop in self.shops:
             response = post(shop.to_dict(), shop_api + "shop")
             if not response:
-                self.logger.error(f"Failed to post to Shop API endpoint: "+str(response))
+                self.logger.error("Failed to post to Shop API endpoint: " + str(response))
+
+    def insert_resets(self):
+        """
+        Posts Reset objects to the API endpoint.
+        """
+        for reset in self.resets:
+            response = post(reset.to_dict(), reset_api + "reset")
+            if not response:
+                self.logger.error("Failed to post to Shop API endpoint: " + str(response))
+
+    def insert_specials(self):
+        """
+        Posts Special objects to the API endpoint.
+        """
+        for special in self.specials:
+            self.logger.info("SPECIAL-PAYLOAD="+str(special.to_dict()))
+            response = post(special.to_dict(), specials_api + "special")
+            if not response:
+                self.logger.error("Failed to post to Special API endpoint: " + str(response))
 
     def to_dict(self):
         """
