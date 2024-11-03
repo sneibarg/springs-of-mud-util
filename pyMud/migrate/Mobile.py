@@ -1,154 +1,143 @@
-from pyMud import extract_subsection
-from pyMud.rest import new_mobile_payload
+from pyMud.rest import generate_mongo_id
 
 
-def extract_mobiles(data):
-    return extract_subsection(data, extract_mobile_fields)
+class Mobile:
+    def __init__(self, area_id, data):
+        """
+        Initializes the Mobile object with the area data.
+        """
+        self.area_id = area_id
+        self.id = generate_mongo_id()
+        self.vnum = None
+        self.name = None
+        self.short_descr = None
+        self.long_descr = None
+        self.description = None
+        self.act_flags = None
+        self.affect_flags = None
+        self.alignment = None
+        self.level = None
+        self.hitroll = None
+        self.damage = None
+        self.race = None
+        self.sex = None
+        self.gold = None
+        self.start_pos = None
+        self.default_pos = None
+        self.flags = None
 
+        try:
+            self._parse_mobile_data(data)
+            print("NEW-MOBILE="+str(self.to_dict()))
+        except ValueError as e:
+            print(f"Error while parsing mobile data: {e}")
 
-def load_mobiles(area_id, mobiles):
-    new_mobs = []
-    for mobile in mobiles:
-        print("MOBILE="+str(mobile))
-        payload = new_mobile_payload(mobile)
-        payload['areaId'] = area_id
-        print("MOBILE_PAYLOAD: " + str(payload))
-        # response = post(payload, mobile_api + "mobile")
-        # content = json.loads(response.content)
-        # new_mobs.append(content)
-    return new_mobs
+    def _parse_mobile_data(self, lines):
+        """
+        Parses the mobile data from the given lines representing a single mobile.
+        """
+        index = 1
+        self.vnum = lines[0][1:]
+        # Name, short description, long description, description (each terminated with ~)
+        self.name = self._parse_terminated_string(lines, index)
+        index += 1
+        self.short_descr = self._parse_terminated_string(lines, index)
+        index += 1
+        self.long_descr, index = self._parse_multiline_terminated_string(lines, index)
+        self.description, index = self._parse_multiline_terminated_string(lines, index)
 
+        if index < len(lines):
+            tokens = lines[index].split()
+            if len(tokens) >= 3 and tokens[0].isdigit():
+                self.act_flags = int(tokens[0])
+                self.affect_flags = int(tokens[1])
+                self.alignment = int(tokens[2])
+                index += 1
+            else:
+                print("Warning: Invalid mobile flags line, setting defaults.")
+                self.act_flags = 0
+                self.affect_flags = 0
+                self.alignment = 0
 
-def get_mobile_description(data):
-    description = []
-    while True:
-        line = data.pop(0)
-        if line == "~" and len(description) > 0:
-            break
-        if line == "~":
-            continue
-        description.append(line)
-    return description, data
+        if index < len(lines):
+            tokens = lines[index].split()
+            if len(tokens) >= 9:
+                self.level = int(tokens[0])
+                self.hitroll = int(tokens[1])
+                self.damage = tokens[2]  # Usually in the form of XdY+Z
+                self.race = tokens[3]
+                self.sex = int(tokens[4])
+                self.gold = int(tokens[5])
+                self.start_pos = int(tokens[6])
+                self.default_pos = int(tokens[7])
+                self.flags = int(tokens[8])
+            else:
+                print("Warning: Invalid mobile attributes line, setting defaults.")
+                self.level = 0
+                self.hitroll = 0
+                self.damage = "0d0+0"
+                self.race = "unknown"
+                self.sex = 0
+                self.gold = 0
+                self.start_pos = 0
+                self.default_pos = 0
+                self.flags = 0
 
+    @staticmethod
+    def _parse_terminated_string(lines, index):
+        """
+        Parses a string terminated with a tilde (~).
+        """
+        try:
+            if index < len(lines):
+                line = lines[index].strip()
+                if line.endswith('~'):
+                    return line.rstrip('~').strip()
+                elif "'" in line:
+                    return line.strip()  # Handle apostrophes gracefully
+            raise ValueError("Unexpected end of data while parsing mobile string")
+        except ValueError as e:
+            print(f"Warning: {e}")
+            return ""
 
-def extract_mobile_fields(data):
-    print("EXTRACT_MOBILE_FIELDS-DATA="+str(data))
-    print("SIZE="+str(len(data)))
-    mobile = {}
-    try:
-        # 1. Extract Mob Name
-        mobile_name_line = data.pop(0)
-        mobile['name'] = mobile_name_line.rstrip('~').strip()
-
-        # 2. Extract Short Description
-        short_desc_line = data.pop(0)
-        mobile['short_description'] = short_desc_line.rstrip('~').strip()
-
-        # 3. Extract Long Description
-        long_desc_lines = []
-        while True:
-            line = data.pop(0)
-            if line.strip() == '~':
+    @staticmethod
+    def _parse_multiline_terminated_string(lines, index):
+        """
+        Parses a multiline string terminated with a tilde (~).
+        """
+        description_lines = []
+        while index < len(lines):
+            line = lines[index].strip()
+            if line == '~':
+                index += 1
                 break
-            long_desc_lines.append(line)
-        mobile['long_description'] = ' '.join(long_desc_lines).strip()
+            description_lines.append(line)
+            index += 1
 
-        # 4. Extract Detailed Description
-        detailed_desc_lines = []
-        while True:
-            line = data.pop(0)
-            if line.strip() == '~':
-                break
-            detailed_desc_lines.append(line)
-        mobile['description'] = ' '.join(detailed_desc_lines).strip()
+        return "\n".join(description_lines), index
 
-        # 5. Extract Race
-        race_line = data.pop(0)
-        mobile['race'] = race_line.rstrip('~').strip()
-
-        # 6. Extract Act Flags and Affected Flags
-        flags_line = data.pop(0)
-        flags_parts = flags_line.split()
-        mobile['act_flags'] = flags_parts[0]
-        mobile['affected_flags'] = flags_parts[1]
-        mobile['alignment'] = int(flags_parts[2])
-        mobile['group'] = int(flags_parts[3])
-
-        # 7. Extract Level, Hit Dice, Mana Dice, Damage Dice, Damage Type
-        stats_line = data.pop(0)
-        stats_parts = stats_line.split()
-        mobile['level'] = int(stats_parts[0])
-        mobile['thac0'] = int(stats_parts[1])
-        mobile['hit_dice'] = stats_parts[2]
-        mobile['mana_dice'] = stats_parts[3]
-        mobile['damage_dice'] = stats_parts[4]
-        mobile['damage_type'] = stats_parts[5]
-
-        # 8. Extract Armor Class, Magic Resistance, Saves, Attacks per Round
-        ac_line = data.pop(0)
-        ac_parts = ac_line.split()
-        mobile['armor_class'] = [int(ac) for ac in ac_parts[:3]]
-        mobile['attacks_per_round'] = int(ac_parts[3])
-
-        # 9. Extract Offense and Defense Flags
-        offense_line = data.pop(0)
-        offense_parts = offense_line.split()
-        mobile['offense_flags'] = offense_parts[0]
-        mobile['immunity'] = offense_parts[1]
-        mobile['resistance'] = offense_parts[2]
-        mobile['vulnerability'] = offense_parts[3]
-
-        # 10. Extract Position Data
-        position_line = data.pop(0)
-        position_parts = position_line.split()
-        mobile['start_position'] = position_parts[0]
-        mobile['default_position'] = position_parts[1]
-        mobile['sex'] = position_parts[2]
-        mobile['gold'] = int(position_parts[3])
-
-        # 11. Extract Miscellaneous Data
-        misc_line = data.pop(0)
-        misc_parts = misc_line.split()
-        mobile['experience'] = int(misc_parts[0])
-        mobile['hitroll'] = int(misc_parts[1])
-        mobile['size'] = misc_parts[2]
-        mobile['material'] = misc_parts[3]
-
-        return mobile
-
-    except IndexError as e:
-        # Handle cases where data may be missing
-        print(f"Error parsing mobile data: {e}")
-        print(f"Current mobile data: {mobile}")
-        return mobile  # or raise an exception if appropriate
-
-    except ValueError as e:
-        # Handle cases where data conversion fails
-        print(f"Value error: {e}")
-        print(f"Current mobile data: {mobile}")
-        return mobile  # or raise an exception if appropriate
-
-# def extract_mobile_fields(data):
-#     mobiles = []
-#     mobile = {}
-#
-#     while True:
-#         if len(data) == 0:
-#             break
-#         line = data.pop(0)
-#         if line.startswith("#"):
-#             print("LINE="+line+", DATA="+str(data))
-#             mobile['vnum'] = line.split('#')[1]
-#             mobile['keywords'] = data.pop(0)
-#             mobile['short-description'] = data.pop(0)
-#             mobile['long-description'] = data.pop(0)
-#             mobile['description'], data = get_mobile_description(data)
-#             mobile['race'] = data.pop(0).replace("~", "")
-#             mobile['act-flags'] = data.pop(0)
-#             mobile['level'] = data.pop(0)
-#             mobile['hit-dice'] = data.pop(0)
-#             mobile['dam-dice'] = data.pop(0)
-#             mobile['position'] = data.pop(0)
-#             mobile['sex'] = data.pop(0)
-#             mobiles.append(mobile)
-#     return mobiles
+    def to_dict(self):
+        """
+        Converts the Mobile object to a dictionary for payload purposes.
+        """
+        return {
+            'areaId': self.area_id,
+            'vnum': self.vnum,
+            'name': self.name,
+            'shortDescription': self.short_descr,
+            'longDescription': self.long_descr,
+            'description': self.description,
+            'actFlags': self.act_flags,
+            'affectFlags': self.affect_flags,
+            'alignment': self.alignment,
+            'level': self.level,
+            'hitroll': self.hitroll,
+            'damage': self.damage,
+            'race': self.race,
+            'sex': self.sex,
+            'gold': self.gold,
+            'startPos': self.start_pos,
+            'defaultPos': self.default_pos,
+            'flags': self.flags,
+            'id': self.id
+        }

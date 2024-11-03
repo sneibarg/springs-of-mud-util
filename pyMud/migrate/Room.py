@@ -141,11 +141,11 @@ class Room:
         'Z': 1 << 25,
     }
 
-    def __init__(self, area_id, data, room_id=None):
+    def __init__(self, area, data, room_id):
         """
         Initializes the Room object with the area data.
         """
-        self.area_id = area_id
+        self.area = area
         self.id = room_id or generate_mongo_id()
         self.data = data
         self.vnum = None
@@ -237,4 +237,40 @@ class Room:
                 else:
                     raise ValueError(f"Unknown room flag character: {char}")
         return flags
+
+    def to_dict(self):
+        """
+        Return a payload for creating a new room document in MongoDB, conforming to the given Lombok Data class.
+        """
+        def get_exit_room_id(direction):
+            """
+            Safely retrieves the MongoDB ID for the room in the given direction.
+            """
+            exit_info = self.exits.get(direction)
+            if exit_info:
+                to_room_vnum = exit_info.get('to_room_vnum')
+                if to_room_vnum is not None:
+                    return self.area.room_id_mapping.get(to_room_vnum)
+            return None
+
+        payload = {
+            'areaId': self.area.id,
+            'vnum': self.vnum,
+            'name': self.name,
+            'description': self.description,
+            'spawn': False,
+            'spawnTimer': 60000,
+            'spawnTime': 0,
+            'mobiles': [],
+            'alternateRoutes': [],
+            'pvp': 'false',
+            'id': self.id,
+            'exitNorth': get_exit_room_id(DirectionMapping.EXIT_NORTH.value),
+            'exitEast': get_exit_room_id(DirectionMapping.EXIT_EAST.value),
+            'exitSouth': get_exit_room_id(DirectionMapping.EXIT_SOUTH.value),
+            'exitWest': get_exit_room_id(DirectionMapping.EXIT_WEST.value),
+            'exitUp': get_exit_room_id(DirectionMapping.EXIT_UP.value),
+            'exitDown': get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
+        }
+        return payload
 

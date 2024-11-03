@@ -3,6 +3,11 @@ import random
 import time
 import requests
 
+area_api = "http://dragon:8082/api/v1/"
+room_api = "http://dragon:8083/api/v1/"
+mobile_api = "http://dragon:8084/api/v1/"
+item_api = "http://dragon:8085/api/v1/"
+
 
 def generate_mongo_id() -> str:
     """
@@ -49,95 +54,6 @@ def put(payload, url):
         return resp
     print(f'Error: {resp.text}')
     return None
-
-
-def new_area_payload(area):
-    """
-    Return a payload for creating a new area document in MongoDB.
-    """
-    payload = {
-        'id': None,
-        'name': area['name'],
-        'author': area['author'],
-        'totalRooms': 0,
-        'rooms': [],
-        'suggestedLevelRange': area['suggested_level_range'],
-        'repopStrategy': "",
-        'repopInterval': 0
-    }
-    return payload
-
-
-def new_room_payload(room, area_id, room_id_mapping):
-    from pyMud.migrate.Room import DirectionMapping
-    """
-    Return a payload for creating a new room document in MongoDB, conforming to the given Lombok Data class.
-    """
-
-    def get_exit_room_id(direction):
-        """
-        Safely retrieves the MongoDB ID for the room in the given direction.
-        """
-        exit_info = room.exits.get(direction)
-        if exit_info:
-            to_room_vnum = exit_info.get('to_room_vnum')
-            if to_room_vnum is not None:
-                return room_id_mapping.get(to_room_vnum)
-        return None
-
-    payload = {
-        'areaId': area_id,
-        'vnum': str(room.vnum),
-        'name': room.name,
-        'description': room.description,
-        'spawn': False,
-        'spawnTimer': 60000,
-        'spawnTime': 0,
-        'mobiles': [],
-        'alternateRoutes': [],
-        'pvp': 'false',
-        'id': room.id,
-        'exitNorth': get_exit_room_id(DirectionMapping.EXIT_NORTH.value),
-        'exitEast': get_exit_room_id(DirectionMapping.EXIT_EAST.value),
-        'exitSouth': get_exit_room_id(DirectionMapping.EXIT_SOUTH.value),
-        'exitWest': get_exit_room_id(DirectionMapping.EXIT_WEST.value),
-        'exitUp': get_exit_room_id(DirectionMapping.EXIT_UP.value),
-        'exitDown': get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
-    }
-    return payload
-
-
-def new_mobile_payload(mobile):
-    """
-    Return a payload for creating a new mobile document in MongoDB.
-    Handles missing keys by providing default values.
-    """
-    print("MOBILE_DATA=" + str(mobile))
-    payload = {
-        "areaId": "",
-        "roomId": "",
-        "name": "",
-        "race": mobile.get('race', ''),
-        "mobClass": "",
-        "shortDescription": mobile.get('short_descr', ''),
-        "longDescription": mobile.get('long_descr', ''),
-        "description": mobile.get('description', ''),
-        "role": "",
-        "guild": "",
-        "level": mobile.get('level', 0),
-        "actFlags": mobile.get('act', 0),
-        "hitDice": "{}d{}+{}".format(*mobile.get('hit', [0, 0, 0])),
-        "damDice": "{}d{}+{}".format(*mobile.get('damage', [0, 0, 0])),
-        "startPosition": mobile.get('start_pos', 0),
-        "defaultPosition": mobile.get('default_pos', 0),
-        "sex": mobile.get('sex', 0),
-        "currentHealth": "",
-        "maxHealth": "",
-        "inventory": [],
-        "skills": [],
-        "statuses": []
-    }
-    return payload
 
 
 def new_object_payload(obj):

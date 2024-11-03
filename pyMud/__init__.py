@@ -10,31 +10,9 @@ def lambda_match(input_str, pattern, anon_dict):
         return anon_dict
 
 
-def extract_subsection(data, parser):
-    """
-    Extract subsections of data and parse each using the provided parser function.
-    Handles empty lines and ensures all lines are collected for each room.
-    """
-    subsections = []
-    lines = data
-    fields = []
-    collecting = False
-    vnum_pattern = re.compile(r'^#\d+')
-    for index, line in enumerate(lines):
-        if vnum_pattern.match(line):
-            if collecting:
-                if fields:
-                    print(f"Processing subsection starting with: {fields[0]}")
-                    print(f"Fields for VNUM {fields[0][1:]}: {fields}")
-                    subsections.append(parser(fields))
-                    fields = []
-            collecting = True
-        if collecting:
-            fields.append(line)
-    # After processing all lines, check if any fields are left
-    if fields:
-        print(f"Processing final subsection starting with: {fields[0]}")
-        print(f"Fields for VNUM {fields[0][1:]}: {fields}")
-        print("LINES="+str(lines))
-        # subsections.append(parser(fields))
-    return subsections
+def add_space_around_operators(code):
+    operators = ['==', '!=', '<=', '>=', '<', '>', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '>>=', '<<=', '**=']
+    operators = sorted(operators, key=len,
+                       reverse=True)  # sort by length in descending order to match longer operators first
+    pattern = '|'.join(map(re.escape, operators))  # create a pattern by joining all operators with '|'
+    return re.sub('({})'.format(pattern), r' \1 ', code)

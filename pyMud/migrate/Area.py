@@ -1,15 +1,19 @@
 import json
 import re
 
-from pyMud.globals import area_api, room_api
+from pyMud.migrate.Mobile import Mobile
 from pyMud.migrate.Room import Room
-from pyMud.rest import new_area_payload, post, generate_mongo_id, new_room_payload
+from pyMud.migrate.Item import Item
+from pyMud.rest import area_api, room_api, mobile_api, item_api, post, generate_mongo_id
 
 
 class Area:
     def __init__(self, area_file):
-        self.area_id = generate_mongo_id()
+        self.author = None
+        self.name = None
+        self.id = generate_mongo_id()
         self.total_rooms = 0
+        self.suggested_level_range = None
         self.lines = []
         self.rooms = []
         self.mobiles = []
@@ -22,8 +26,10 @@ class Area:
         self._initialize_file(area_file)
         self._initialize_sections()
         self.total_rooms = len(self.rooms)
-        self._create_payload_and_post()
-        self.create_rooms()
+        self.insert_area()
+        self.insert_rooms()
+        self.insert_objects()
+        self.insert_mobiles()
 
     def _initialize_file(self, area_file):
         with open(area_file, 'r') as f:
@@ -43,7 +49,6 @@ class Area:
             'SPECIALS': []
         }
         current_section = None
-
         for line in self.lines:
             if line.startswith('#AREAS'):
                 current_section = None
@@ -64,7 +69,6 @@ class Area:
 
             if current_section in sections:
                 sections[current_section].append(line)
-
         return sections
 
     def _initialize_sections(self):
@@ -73,15 +77,73 @@ class Area:
         pre-generates MongoIDs for each room VNUM, and parses each section independently.
         """
         sections = self._split_sections()
-        room_sections = self._split_rooms(sections['ROOMS'])
+        room_lines = self._split_rooms(sections['ROOMS'])
+        mobile_lines = self._split_entities(sections['MOBILES'], 'MOBILES')
+        object_lines = self._split_entities(sections['OBJECTS'], 'OBJECTS')
 
-        self._pre_generate_room_ids(room_sections) # pre-generate the Mongo ID
-        self.rooms = [self._create_room(room_data) for room_data in room_sections if self._is_valid_room(room_data)]
-        self.mobiles = sections['MOBILES']
-        self.objects = sections['OBJECTS']
+        self._pre_generate_room_ids(room_lines)
+        self.rooms = [self._create_room(room_data) for room_data in room_lines if self._is_valid_room(room_data)]
+        self.mobiles = [self._create_mobile(mobile_data) for mobile_data in mobile_lines]
+        self.objects = [self._create_object(object_data) for object_data in object_lines]
         self.shops = sections['SHOPS']
         self.resets = sections['RESETS']
         self.specials = sections['SPECIALS']
+
+    @staticmethod
+    def _split_entities(lines, entity_type):
+        """
+        Splits the entity data (e.g., mobiles or objects) into individual sections.
+        Each entity is represented as a list of lines.
+        """
+        entities = []
+        current_entity = []
+        for line in lines:
+            if line == f"#{entity_type}":
+                continue
+            is_vnum = bool(re.match(r'^#\d+$', line))
+            if is_vnum and len(current_entity) > 0:
+                entities.append(current_entity)
+                current_entity = []
+            current_entity.append(line)
+        if current_entity:
+            entities.append(current_entity)
+        return entities
+
+    @staticmethod
+    def _split_objects(object_lines):
+        """
+        Splits the object data into individual object sections.
+        Each object is represented as a list of lines.
+        """
+        objects = []
+        current_object = []
+        for line in object_lines:
+            if line == "#OBJECTS":
+                continue
+            is_vnum = bool(re.match(r'^#\d+$', line))
+            if is_vnum and len(current_object) > 0:
+                objects.append(current_object)
+                current_object = []
+            current_object.append(line)
+        if current_object:
+            objects.append(current_object)
+        return objects
+
+    @staticmethod
+    def _split_mobiles(mobile_lines):
+        mobiles = []
+        current_mobile = []
+        for line in mobile_lines:
+            if line == "#MOBILES":
+                continue
+            is_vnum = bool(re.match(r'^#\d+$', line))
+            if is_vnum and len(current_mobile) > 0:
+                mobiles.append(current_mobile)
+                current_mobile = []
+            current_mobile.append(line)
+        if current_mobile:
+            mobiles.append(current_mobile)
+        return mobiles
 
     @staticmethod
     def _split_rooms(room_lines):
@@ -139,54 +201,84 @@ class Area:
                 return int(match.group(1))
         return None
 
+    def _create_mobile(self, mobile_data):
+        return Mobile(self.id, mobile_data)
+
     def _create_room(self, room_data):
         """
         Creates a Room object, assigns its pre-generated MongoID, and returns the room.
         """
         vnum = self._extract_vnum_from_room_data(room_data)
         if vnum is not None and vnum in self.room_id_mapping:
-            room_id = self.room_id_mapping[vnum]
-            room = Room(self.area_id, room_data, room_id)  # Pass the pre-generated MongoID
-            return room
+            return Room(self, room_data, self.room_id_mapping[vnum])
         else:
             print(f"Warning: VNUM {vnum} not found in room_id_mapping.")
             return None
 
-    def _create_payload_and_post(self):
+    def _create_object(self, object_data):
+        return Item(self.id, object_data)
+
+    def insert_area(self):
         """
         Generate the payload for the area and post it to the API service.
-        """
-        area_info = self._extract_area_fields()
-        payload = new_area_payload(area_info)
-        payload['id'] = self.area_id
-        payload['totalRooms'] = self.total_rooms
-        print("AREA-PAYLOAD=" + str(payload))
-        response = post(payload, area_api + "areas")
-        if response:
-            return json.loads(response.content)
-        return None
-
-    def _extract_area_fields(self):
-        """
-        Extract fields required for area creation from the area lines.
         """
         pattern = r"{\s*(?P<level_range>[\d\s-]+)\s*}\s*(?P<author>\S+)\s+(?P<area_name>.*?)~"
         for line in self.lines:
             match = re.search(pattern, line)
             if match:
-                return {
-                    "suggested_level_range": match.group("level_range"),
-                    "author": match.group("author"),
-                    "name": match.group("area_name")
-                }
-        return {
-            "suggested_level_range": None,
-            "author": None,
-            "name": None
-        }
+                self.suggested_level_range = match.group("level_range")
+                self.author = match.group("author")
+                self.name = match.group("area_name")
 
-    def create_rooms(self):
+        payload = self.to_dict()
+        payload['id'] = self.id
+        payload['totalRooms'] = self.total_rooms
+        response = post(payload, area_api + "areas")
+        if response:
+            return json.loads(response.content)
+        return None
+
+    def insert_rooms(self):
         for room in self.rooms:
-            room_payload = new_room_payload(room, self.area_id, self.room_id_mapping)
-            # print("ROOM-PAYLOAD=" + str(room_payload))
+            room_payload = room.to_dict()
             post(room_payload, room_api + "room")
+
+    def insert_mobiles(self):
+        """
+        Posts Mobile objects to the API endpoint.
+        """
+        for mobile in self.mobiles:
+            payload = mobile.to_dict()
+            response = post(payload, mobile_api + "mobile")
+            if response:
+                print(f"Mobile posted successfully: {response.status_code}")
+            else:
+                print("Failed to post Mobile.")
+
+    def insert_objects(self):
+        """
+        Posts Item objects to the API endpoint.
+        """
+        for item in self.objects:
+            payload = item.to_dict()
+            response = post(payload, item_api + "item")
+            if response:
+                print(f"Item posted successfully: {response.status_code}")
+            else:
+                print("Failed to post Item.")
+
+    def to_dict(self):
+        """
+        Return a payload for creating a new area document in MongoDB.
+        """
+        payload = {
+            'id': None,
+            'name': self.name,
+            'author': self.author,
+            'totalRooms': 0,
+            'rooms': [],
+            'suggestedLevelRange': self.suggested_level_range,
+            'repopStrategy': "",
+            'repopInterval': 0
+        }
+        return payload
