@@ -8,9 +8,8 @@ class Orchestrator:
     def __init__(self, directory):
         self.directory = directory
         self.area_files = self._get_area_files()
-        self.cpu_count = multiprocessing.cpu_count()
         self.area_count = len(self.area_files)
-        print(f"Distributing {self.area_count} files among {self.cpu_count} processors.")
+        print(f"Distributing {self.area_count} files among {multiprocessing.cpu_count()} processors.")
 
     def _get_area_files(self):
         """
@@ -30,7 +29,7 @@ class Orchestrator:
         Use a process pool to process area files in parallel.
         """
         start_time = time.time()
-        with multiprocessing.Pool(self.cpu_count) as pool:
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
             pool.map(self.process_area_file, self.area_files)
         end_time = time.time()
         print(f"Orchestrator run completed in {end_time - start_time:.2f} seconds.")
