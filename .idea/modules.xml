@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/../pyUtil/.idea/pyUtil.iml" filepath="$PROJECT_DIR$/../pyUtil/.idea/pyUtil.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/py-util.iml" filepath="$PROJECT_DIR$/.idea/py-util.iml" />
     </modules>
   </component>
 </project>
