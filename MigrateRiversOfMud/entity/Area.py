@@ -16,7 +16,6 @@ class Area:
         self.author = None
         self.name = None
         self.id = generate_mongo_id()
-        self.total_rooms = 0
         self.suggested_level_range = None
         self.lines = []
         self.rooms = []
@@ -26,11 +25,10 @@ class Area:
         self.resets = []
         self.specials = []
         self.room_id_mapping = {}
-
         self.logger = setup_logger("Area", log_dir)
+
         self._initialize_file(area_file)
         self._initialize_sections()
-        self.total_rooms = len(self.rooms)
         self.insert_area()
         self.insert_rooms()
         self.insert_objects()
@@ -92,18 +90,13 @@ class Area:
         object_lines = self._split_entities(sections['OBJECTS'], 'OBJECTS')
         shop_lines = self._split_entities(sections['SHOPS'], 'SHOPS')
 
-        if len(sections['RESETS']) > 0:
-            del sections['RESETS'][0]
-        if len(sections['SPECIALS']) > 0:
-            del sections['SPECIALS'][0]
-
         self._pre_generate_room_ids(room_lines)
-        self.rooms = [self._create_room(room_data) for room_data in room_lines if self._is_valid_room(room_data)]
+        self.rooms = [self._create_room(room_data) for room_data in room_lines]  # if self._is_valid_room(room_data)]
         self.mobiles = [self._create_mobile(mobile_data) for mobile_data in mobile_lines]
         self.objects = [self._create_object(object_data) for object_data in object_lines]
         self.shops = [self._create_shop(shop_data) for shop_data in shop_lines]
-        self.resets = [self._create_reset(line) for line in sections['RESETS']]
-        self.specials = [self._create_special(line) for line in sections['SPECIALS']]
+        self.resets = [self._create_reset(line) for line in sections['RESETS'][1:]]
+        self.specials = [self._create_special(line) for line in sections['SPECIALS'][1:]]
 
     def _pre_generate_room_ids(self, room_sections):
         """
@@ -112,8 +105,7 @@ class Area:
         for room_data in room_sections:
             vnum = self._extract_vnum(room_data)
             if vnum is not None:
-                mongo_id = generate_mongo_id()
-                self.room_id_mapping[vnum] = mongo_id
+                self.room_id_mapping[vnum] = generate_mongo_id()
 
     @staticmethod
     def _split_entities(lines, entity_type):
@@ -126,8 +118,7 @@ class Area:
         for line in lines:
             if line == f"#{entity_type}":
                 continue
-            is_vnum = bool(re.match(r'^#\d+$', line))
-            if is_vnum and len(current_entity) > 0:
+            if bool(re.match(r'^#\d+$', line)) and len(current_entity) > 0:
                 entities.append(current_entity)
                 current_entity = []
             current_entity.append(line)
@@ -233,7 +224,7 @@ class Area:
                 self.name = match.group("area_name")
 
         payload = self.to_dict()
-        payload['totalRooms'] = self.total_rooms
+        payload['totalRooms'] = len(self.rooms)
         response = post(payload, api_endpoints['area'] + "areas")
         if not response:
             self.logger.error("Failed posting to Area API endpoint: {response}")
@@ -298,7 +289,7 @@ class Area:
         """
         Return a payload for creating a new area document in MongoDB.
         """
-        payload = {
+        return {
             'id': self.id,
             'name': self.name,
             'author': self.author,
@@ -308,4 +299,3 @@ class Area:
             'repopStrategy': "",
             'repopInterval': 0
         }
-        return payload

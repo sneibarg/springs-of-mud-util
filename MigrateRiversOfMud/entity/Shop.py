@@ -1,5 +1,6 @@
 import re
 
+from MigrateRiversOfMud.http import generate_mongo_id
 from MigrateRiversOfMud.logging import setup_logger
 
 
@@ -9,6 +10,7 @@ class Shop:
         Initializes the Shop object with the area data.
         """
         self.area_id = area_id
+        self.id = generate_mongo_id()
         self.vnum = None
         self.trade_items = []
         self.profit_buy = None
@@ -20,6 +22,7 @@ class Shop:
 
         try:
             self._parse_shop_data(data)
+            self.logger.info("SHOP-PAYLOAD="+str(self.to_dict()))
         except (ValueError, TypeError) as e:
             self.logger.error(f"Error while parsing shop data: {e}")
 
@@ -34,7 +37,10 @@ class Shop:
         else:
             raise TypeError("Expected a string or list with shop data line")
 
+        if line == "0":
+            return
         # Example line format: "3000  2  3  4 10  0  105  15  0 23  * the wizard"
+        self.logger.info("LINE="+line)
         tokens = re.split(r'\s+', line)
         if len(tokens) >= 11:
             self.vnum = int(tokens[0])
@@ -59,5 +65,6 @@ class Shop:
             'profitSell': self.profit_sell,
             'openHour': self.open_hour,
             'closeHour': self.close_hour,
-            'ownerName': self.owner_name
+            'ownerName': self.owner_name,
+            'id': self.id
         }
