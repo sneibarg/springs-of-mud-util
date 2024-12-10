@@ -85,6 +85,12 @@ class Room:
 
         try:
             self.extract_room_fields(self.data)
+            self.exitNorth = self.get_exit_room_id(DirectionMapping.EXIT_NORTH.value)
+            self.exitEast = self.get_exit_room_id(DirectionMapping.EXIT_EAST.value)
+            self.exitSouth = self.get_exit_room_id(DirectionMapping.EXIT_SOUTH.value)
+            self.exitWest = self.get_exit_room_id(DirectionMapping.EXIT_WEST.value)
+            self.exitUp = self.get_exit_room_id(DirectionMapping.EXIT_UP.value)
+            self.exitDown = self.get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
         except ValueError as e:
             self.logger.error(f"Error extracting room fields: {e}")
 
@@ -244,39 +250,57 @@ class Room:
                     raise ValueError(f"Unknown room flag character: {char}")
         return flags
 
-    def to_dict(self):
+    """
+    Return a payload for creating a new room document in MongoDB, conforming to the given Lombok Data class.
+    """
+    def get_exit_room_id(self, direction):
         """
-        Return a payload for creating a new room document in MongoDB, conforming to the given Lombok Data class.
+        Safely retrieves the MongoDB ID for the room in the given direction.
         """
-        def get_exit_room_id(direction):
-            """
-            Safely retrieves the MongoDB ID for the room in the given direction.
-            """
-            exit_info = self.exits.get(direction)
-            if exit_info:
-                to_room_vnum = exit_info.get('to_room_vnum')
-                if to_room_vnum is not None:
-                    return self.area.room_id_mapping.get(to_room_vnum)
-            return None
+        exit_info = self.exits.get(direction)
+        if exit_info:
+            to_room_vnum = exit_info.get('to_room_vnum')
+            if to_room_vnum is not None:
+                return self.area.room_id_mapping.get(to_room_vnum)
+        return None
 
+    def get_connections(self):
+        connections = {'north': None, 'south': None, 'east': None, 'west': None, 'up': None, 'down': None}
+        for direction, exit_room in [
+            ("north", self.exitNorth),
+            ("east", self.exitEast),
+            ("south", self.exitSouth),
+            ("west", self.exitWest),
+            ("up", self.exitUp),
+            ("down", self.exitDown),
+        ]:
+            if exit_room:
+                connections[direction] = exit_room
+        return connections
+
+    def to_dict(self):
         payload = {
             'areaId': self.area.id,
             'vnum': self.vnum,
             'name': self.name,
             'description': self.description,
             'spawn': False,
+            'pvp': False,
             'spawnTimer': 60000,
             'spawnTime': 0,
+            'teleDelay': self.tele_delay,
+            'roomFlags': self.room_flags,
+            'sectorType': self.sector_type,
             'mobiles': [],
             'alternateRoutes': [],
-            'pvp': 'false',
+            'extraDescription': [],
             'id': self.id,
-            'exitNorth': get_exit_room_id(DirectionMapping.EXIT_NORTH.value),
-            'exitEast': get_exit_room_id(DirectionMapping.EXIT_EAST.value),
-            'exitSouth': get_exit_room_id(DirectionMapping.EXIT_SOUTH.value),
-            'exitWest': get_exit_room_id(DirectionMapping.EXIT_WEST.value),
-            'exitUp': get_exit_room_id(DirectionMapping.EXIT_UP.value),
-            'exitDown': get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
+            'exitNorth': self.get_exit_room_id(DirectionMapping.EXIT_NORTH.value),
+            'exitEast': self.get_exit_room_id(DirectionMapping.EXIT_EAST.value),
+            'exitSouth': self.get_exit_room_id(DirectionMapping.EXIT_SOUTH.value),
+            'exitWest': self.get_exit_room_id(DirectionMapping.EXIT_WEST.value),
+            'exitUp': self.get_exit_room_id(DirectionMapping.EXIT_UP.value),
+            'exitDown': self.get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
         }
         return payload
 

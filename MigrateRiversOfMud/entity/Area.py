@@ -12,9 +12,10 @@ from MigrateRiversOfMud.logging import setup_logger
 
 
 class Area:
-    def __init__(self, area_file, log_dir='logs'):
+    def __init__(self, area_file, insert=True, log_dir='logs'):
         self.author = None
         self.name = None
+        self.insert = insert
         self.id = generate_mongo_id()
         self.suggested_level_range = None
         self.lines = []
@@ -26,20 +27,30 @@ class Area:
         self.specials = []
         self.room_id_mapping = {}
         self.logger = setup_logger("Area", log_dir)
-
         self._initialize_file(area_file)
         self._initialize_sections()
-        self.insert_area()
-        self.insert_rooms()
-        self.insert_objects()
-        self.insert_mobiles()
-        self.insert_shops()
-        self.insert_specials()
-        self.insert_resets()
+        self._populate_self()
+        if self.insert:
+            self.insert_area()
+            self.insert_rooms()
+            self.insert_objects()
+            self.insert_mobiles()
+            self.insert_shops()
+            self.insert_specials()
+            self.insert_resets()
 
     def _initialize_file(self, area_file):
         with open(area_file, 'r') as f:
             self.lines = [line.strip() for line in f.readlines()]
+
+    def _populate_self(self):
+        pattern = r"{\s*(?P<level_range>[\d\s-]+)\s*}\s*(?P<author>\S+)\s+(?P<area_name>.*?)~"
+        for line in self.lines:
+            match = re.search(pattern, line)
+            if match:
+                self.suggested_level_range = match.group("level_range")
+                self.author = match.group("author")
+                self.name = match.group("area_name")
 
     def _split_sections(self):
         """
@@ -215,14 +226,6 @@ class Area:
         """
         Generate the payload for the area and post it to the API service.
         """
-        pattern = r"{\s*(?P<level_range>[\d\s-]+)\s*}\s*(?P<author>\S+)\s+(?P<area_name>.*?)~"
-        for line in self.lines:
-            match = re.search(pattern, line)
-            if match:
-                self.suggested_level_range = match.group("level_range")
-                self.author = match.group("author")
-                self.name = match.group("area_name")
-
         payload = self.to_dict()
         payload['totalRooms'] = len(self.rooms)
         response = post(payload, api_endpoints['area'] + "areas")
