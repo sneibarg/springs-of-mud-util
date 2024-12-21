@@ -274,7 +274,7 @@ class Room:
             ("up", self.exitUp),
             ("down", self.exitDown),
         ]:
-            if exit_room:
+            if exit_room is not None:
                 connections[direction] = exit_room
         return connections
 

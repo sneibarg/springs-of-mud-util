@@ -37,6 +37,6 @@ def migrate_rom(area_dir):
 def build_presentation(area_files):
     for area_file in area_files:
         area = Area(area_file, insert=False)
-        RomMapEntity.generate_entities(area)
-        # RomMapEntity(area, 0, 0, 0).save_as_png("room_entity.png")
+        area_entity = RomMapEntity(area, 0, 0.0, 0.0, False)
+        area_entity.generate_entities(area)
         break
