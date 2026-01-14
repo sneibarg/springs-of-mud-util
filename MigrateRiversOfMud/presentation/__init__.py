@@ -1,19 +1,18 @@
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle, FancyArrowPatch
 from MigrateRiversOfMud.logging import setup_logger
+from MigrateRiversOfMud.presentation.RoomDataProcessor import RoomDataProcessor
 
 
 class RomDeck:
     def __init__(self, area, log_dir="logs"):
-        self.ax = None
-        self.figure = None
         self.area = area
         self.logger = setup_logger("RomDeck", log_dir)
         self.room_dict_by_id = {room.id: room for room in area.rooms}
         self.room_dict_by_vnum = {room.vnum: room for room in area.rooms}
+        self._processor = RoomDataProcessor(area)
 
     def create_deck(self, max_rooms_per_slide=15):
-        entities = self._create_entities(self.area.rooms)
+        entities = self._processor.process_room_data()
         slides = self._layout_slides(entities, max_rooms_per_slide)
 
         for i, slide in enumerate(slides):

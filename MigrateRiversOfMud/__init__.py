@@ -1,7 +1,9 @@
+import os
 import re
 
 from MigrateRiversOfMud.entity import Area
 from MigrateRiversOfMud.presentation import RomDeck
+from MigrateRiversOfMud.presentation.RomLayoutEngine import RomLayoutEngine
 from MigrateRiversOfMud.presentation.RomMapEntity import RomMapEntity
 
 
@@ -37,6 +39,9 @@ def migrate_rom(area_dir):
 def build_presentation(area_files):
     for area_file in area_files:
         area = Area(area_file, insert=False)
-        area_entity = RomMapEntity(area, 0, 0.0, 0.0, False)
-        area_entity.generate_entities(area)
+        map_entity_list = RomMapEntity.generate_entities(area)
+        print(f"Entity count: {len(map_entity_list)}")
+        break
+        rom_layout_engine = RomLayoutEngine(map_entity_list)
+        rom_layout_engine.render_plot()
         break
