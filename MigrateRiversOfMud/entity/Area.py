@@ -12,7 +12,7 @@ from MigrateRiversOfMud.logging import setup_logger
 
 
 class Area:
-    def __init__(self, area_file, insert=True, log_dir='logs'):
+    def __init__(self, area_file, insert=True, filename='Area.log'):
         self.author = None
         self.name = None
         self.insert = insert
@@ -26,18 +26,17 @@ class Area:
         self.resets = []
         self.specials = []
         self.room_id_mapping = {}
-        self.logger = setup_logger("Area", log_dir)
+        self.logger = setup_logger("Area", filename)
         self._initialize_file(area_file)
         self._initialize_sections()
         self._populate_self()
-        if self.insert:
-            self.insert_area()
-            self.insert_rooms()
-            self.insert_objects()
-            self.insert_mobiles()
-            self.insert_shops()
-            self.insert_specials()
-            self.insert_resets()
+        self.insert_area()
+        self.insert_rooms()
+        self.insert_objects()
+        self.insert_mobiles()
+        self.insert_shops()
+        self.insert_specials()
+        self.insert_resets()
 
     def _initialize_file(self, area_file):
         with open(area_file, 'r') as f:
@@ -50,7 +49,7 @@ class Area:
             if match:
                 self.suggested_level_range = match.group("level_range")
                 self.author = match.group("author")
-                self.name = match.group("area_name")
+                self.name = match.group("area_name").strip() or "Unnamed Area"
 
     def _split_sections(self):
         """
@@ -228,6 +227,9 @@ class Area:
         """
         payload = self.to_dict()
         payload['totalRooms'] = len(self.rooms)
+        if not self.insert:
+            self.logger.info(f"[DRY RUN] Area payload: {json.dumps(payload, indent=2)}")
+            return None
         response = post(payload, api_endpoints['area'] + "areas")
         if not response:
             self.logger.error("Failed posting to Area API endpoint: {response}")
@@ -239,7 +241,11 @@ class Area:
         Posts Room objects to the API endpoint.
         """
         for room in self.rooms:
-            response = post(room.to_dict(), api_endpoints['room'] + "room")
+            payload = room.to_dict()
+            if not self.insert:
+                self.logger.info(f"[DRY RUN] Room payload: {json.dumps(payload, indent=2)}")
+                continue
+            response = post(payload, api_endpoints['room'] + "rooms")
             if not response:
                 self.logger.error("Failed posting to Room API endpoint: {response}")
 
@@ -248,7 +254,11 @@ class Area:
         Posts Mobile objects to the API endpoint.
         """
         for mobile in self.mobiles:
-            response = post(mobile.to_dict(), api_endpoints['mobile'] + "mobile")
+            payload = mobile.to_dict()
+            if not self.insert:
+                self.logger.info(f"[DRY RUN] Mobile payload: {json.dumps(payload, indent=2)}")
+                continue
+            response = post(payload, api_endpoints['mobile'] + "mobiles")
             if not response:
                 self.logger.error("Failed posting to Mobile API endpoint: {response}")
 
@@ -257,7 +267,11 @@ class Area:
         Posts Item objects to the API endpoint.
         """
         for item in self.objects:
-            response = post(item.to_dict(), api_endpoints['item'] + "item")
+            payload = item.to_dict()
+            if not self.insert:
+                self.logger.info(f"[DRY RUN] Item payload: {json.dumps(payload, indent=2)}")
+                continue
+            response = post(payload, api_endpoints['item'] + "items")
             if not response:
                 self.logger.error("Failed to post to Item API endpoint: " + str(response))
 
@@ -266,7 +280,11 @@ class Area:
         Posts Shop objects to the API endpoint.
         """
         for shop in self.shops:
-            response = post(shop.to_dict(), api_endpoints['shop'] + "shop")
+            payload = shop.to_dict()
+            if not self.insert:
+                self.logger.info(f"[DRY RUN] Shop payload: {json.dumps(payload, indent=2)}")
+                continue
+            response = post(payload, api_endpoints['shop'] + "shops")
             if not response:
                 self.logger.error("Failed to post to Shop API endpoint: " + str(response))
 
@@ -275,7 +293,11 @@ class Area:
         Posts Reset objects to the API endpoint.
         """
         for reset in self.resets:
-            response = post(reset.to_dict(), api_endpoints['reset'] + "reset")
+            payload = reset.to_dict()
+            if not self.insert:
+                self.logger.info(f"[DRY RUN] Reset payload: {json.dumps(payload, indent=2)}")
+                continue
+            response = post(payload, api_endpoints['reset'] + "resets")
             if not response:
                 self.logger.error("Failed to post to Shop API endpoint: " + str(response))
 
@@ -284,7 +306,11 @@ class Area:
         Posts Special objects to the API endpoint.
         """
         for special in self.specials:
-            response = post(special.to_dict(), api_endpoints['special'] + "special")
+            payload = special.to_dict()
+            if not self.insert:
+                self.logger.info(f"[DRY RUN] Special payload: {json.dumps(payload, indent=2)}")
+                continue
+            response = post(payload, api_endpoints['special'] + "specials")
             if not response:
                 self.logger.error("Failed to post to Special API endpoint: " + str(response))
 
@@ -294,7 +320,7 @@ class Area:
         """
         return {
             'id': self.id,
-            'name': self.name,
+            'name': self.name or "Unnamed Area",
             'author': self.author,
             'totalRooms': 0,
             'rooms': [],

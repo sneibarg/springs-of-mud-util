@@ -60,7 +60,7 @@ class Room:
         'Z': 1 << 25,
     }
 
-    def __init__(self, area, data, room_id, log_dir='logs'):
+    def __init__(self, area, data, room_id, filename='Room.log'):
         """
         Initializes the Room object with the area data.
         """
@@ -81,7 +81,7 @@ class Room:
         self.exitWest = None
         self.exitUp = None
         self.exitDown = None
-        self.logger = setup_logger("Room", log_dir)
+        self.logger = setup_logger("Room", filename)
 
         try:
             self.extract_room_fields(self.data)
@@ -160,11 +160,12 @@ class Room:
             raise ValueError(f"Unexpected end of data while parsing room flags for room VNUM: {vnum}")
         tokens = lines[index].strip().split()
         if len(tokens) >= 3:
-            tele_delay = int(tokens[0]) if tokens[0].isdigit() else 0
+            # ROM 2.4 format: <area_number> <room_flags> <sector_type>
+            # We discard area_number (tokens[0]) as ROM does
             room_flags = self._parse_room_flags(tokens[1])
             sector_type = self._parse_sector_type(tokens[2])
             index += 1  # Advance the index after processing the flags line
-            return {'tele_delay': tele_delay, 'room_flags': room_flags, 'sector_type': sector_type}, index
+            return {'tele_delay': 0, 'room_flags': room_flags, 'sector_type': sector_type}, index
         self.logger.warning(f"Invalid room flags line: '{lines[index]}'. Setting default values.")
         index += 1  # Advance the index even if the line is invalid
         return {'tele_delay': 0, 'room_flags': 0, 'sector_type': SectorType.INSIDE.value}, index
@@ -282,7 +283,7 @@ class Room:
         payload = {
             'areaId': self.area.id,
             'vnum': self.vnum,
-            'name': self.name,
+            'name': self.name or "Unnamed Room",
             'description': self.description,
             'spawn': False,
             'pvp': False,

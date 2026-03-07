@@ -2,6 +2,7 @@ import os
 import re
 
 from MigrateRiversOfMud.entity import Area
+from MigrateRiversOfMud.entity.Orchestrator import Orchestrator
 from MigrateRiversOfMud.presentation import RomDeck
 from MigrateRiversOfMud.presentation.RomLayoutEngine import RomLayoutEngine
 from MigrateRiversOfMud.presentation.RomMapEntity import RomMapEntity
@@ -30,9 +31,8 @@ def add_space_around_operators(code):
     return re.sub('({})'.format(pattern), r' \1 ', code)
 
 
-def migrate_rom(area_dir):
-    from MigrateRiversOfMud.entity import Orchestrator
-    orchestrator = Orchestrator(area_dir)
+def migrate_rom(area_dir, dry_run=False, delete_first=False):
+    orchestrator = Orchestrator(area_dir, dry_run=dry_run, delete_first=delete_first)
     orchestrator.run()
 
 

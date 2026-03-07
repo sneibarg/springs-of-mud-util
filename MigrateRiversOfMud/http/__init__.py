@@ -4,13 +4,13 @@ import time
 import requests
 
 api_endpoints = {
-    'area': "http://dragon:8082/api/v1/",
-    'room': "http://dragon:8083/api/v1/",
-    'mobile': "http://dragon:8084/api/v1/",
-    'item': "http://dragon:8085/api/v1/",
-    'shop': "http://dragon:8086/api/v1/",
-    'reset': "http://dragon:8087/api/v1/",
-    'special': "http://dragon:8088/api/v1/"
+    'area': "http://dragon:9080/api/v1/",
+    'room': "http://dragon:9080/api/v1/",
+    'mobile': "http://dragon:9080/api/v1/",
+    'item': "http://dragon:9080/api/v1/",
+    'shop': "http://dragon:9080/api/v1/",
+    'reset': "http://dragon:9080/api/v1/",
+    'special': "http://dragon:9080/api/v1/"
 }
 
 headers = {
@@ -55,3 +55,10 @@ def put(payload, url):
     Make an HTTP PUT request with the given payload to the specified URL.
     """
     return handle_response(requests.put(url, data=json.dumps(payload), headers=headers))
+
+
+def delete(url):
+    """
+    Make an HTTP DELETE request to the specified URL.
+    """
+    return handle_response(requests.delete(url, headers=headers))

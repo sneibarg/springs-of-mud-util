@@ -5,7 +5,7 @@ from MigrateRiversOfMud.logging import setup_logger
 
 
 class Shop:
-    def __init__(self, area_id, data, log_dir='logs'):
+    def __init__(self, area_id, data, filename='Shop.log'):
         """
         Initializes the Shop object with the area data.
         """
@@ -18,7 +18,7 @@ class Shop:
         self.open_hour = None
         self.close_hour = None
         self.owner_name = None
-        self.logger = setup_logger("Shop", log_dir)
+        self.logger = setup_logger("Shop", filename)
 
         try:
             self._parse_shop_data(data)
@@ -29,6 +29,7 @@ class Shop:
     def _parse_shop_data(self, lines):
         """
         Parses the shop data from the given lines representing a single shop.
+        ROM 2.4 format: <keeper> <buy_type[0..4]> <profit_buy> <profit_sell> <open_hour> <close_hour> [comment]
         """
         if isinstance(lines, list) and len(lines) > 0:
             line = lines[0].strip()
@@ -39,19 +40,30 @@ class Shop:
 
         if line == "0":
             return
-        # Example line format: "3000  2  3  4 10  0  105  15  0 23  * the wizard"
-        self.logger.info("LINE="+line)
+
+        # Split line, but preserve comment if it starts with '*'
+        comment_idx = line.find('*')
+        if comment_idx > 0:
+            comment = line[comment_idx:].strip()
+            line = line[:comment_idx].strip()
+            self.owner_name = comment.lstrip('*').strip()
+        else:
+            self.owner_name = ""
+
+        self.logger.info("LINE=" + line)
         tokens = re.split(r'\s+', line)
-        if len(tokens) >= 11:
-            self.vnum = int(tokens[0])
-            self.trade_items = [int(t) for t in tokens[1:6] if t != '0']
+
+        # Need at least 9 tokens: keeper + 5 buy_types + profit_buy + profit_sell + open_hour + close_hour
+        if len(tokens) >= 9:
+            self.vnum = int(tokens[0])  # keeper vnum
+            # buy_type[0] through buy_type[4] - filter out 0 values
+            self.trade_items = [int(tokens[i]) for i in range(1, 6) if int(tokens[i]) != 0]
             self.profit_buy = int(tokens[6])
             self.profit_sell = int(tokens[7])
             self.open_hour = int(tokens[8])
-            self.close_hour = int(tokens[9])
-            self.owner_name = ' '.join(tokens[11:]).replace('*', '').strip()
+            self.close_hour = int(tokens[9]) if len(tokens) > 9 else 0
         else:
-            raise ValueError("Invalid shop data line")
+            raise ValueError(f"Invalid shop data line: expected at least 9 tokens, got {len(tokens)}")
 
     def to_dict(self):
         """

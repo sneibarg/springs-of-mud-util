@@ -1,22 +1,24 @@
-import os
 import logging
+import os
+
+LOG_DIR = os.path.join(os.getcwd(), "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
 
 
-def setup_logger(object_name, log_dir):
-    """
-    Sets up a logger for the class.
-    """
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+def setup_logger(name: str, filename: str):
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
 
-    logger = logging.getLogger(f'{object_name}')
-    logger.setLevel(logging.DEBUG)
+    if not logger.handlers:   # critical guard
+        path = os.path.join(LOG_DIR, filename)
 
-    file_handler = logging.FileHandler(os.path.join(log_dir, object_name+'.log'))
-    file_handler.setLevel(logging.DEBUG)
+        handler = logging.FileHandler(path)
+        formatter = logging.Formatter(
+            "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+        )
+        handler.setFormatter(formatter)
 
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    file_handler.setFormatter(formatter)
+        logger.addHandler(handler)
 
-    logger.addHandler(file_handler)
     return logger
+
