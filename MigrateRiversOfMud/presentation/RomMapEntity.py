@@ -11,7 +11,8 @@ class RomMapEntity(GameMapEntity):
         super().__init__()
         self.area = area
         self.room_index = room_index
-        self.connections = self._get_room_connections()
+        self.room = area.rooms[room_index]
+        self.connections = self.room.get_connections()
 
         self._processor = RoomDataProcessor(area)
         self._processor.process_room_data()[room_index]
@@ -38,13 +39,21 @@ class RomMapEntity(GameMapEntity):
         self.ax.set_aspect("equal")
         self.ax.axis("off")
 
-        room_rect = self.draw_room(x, y, f"Room {self.room_index}")
+        # Draw the central room with its name
+        room_rect = self.draw_room(x, y, self.room.name)
         neighbor_rectangles = {}
+
+        # Draw neighbor rooms only if they have connections
         for direction, coords in self.neighbors.items():
             if coords != (0, 0) and self.connections.get(direction) is not None:
                 nx, ny = coords
-                neighbor_rectangles[direction] = self.draw_room(nx, ny, direction)
+                # Get the connected room's name
+                connected_room_id = self.connections[direction]
+                connected_room = next((r for r in self.area.rooms if r.id == connected_room_id), None)
+                label = connected_room.name if connected_room else direction
+                neighbor_rectangles[direction] = self.draw_room(nx, ny, label)
 
+        # Draw connections only where they exist
         for direction, coords in self.neighbors.items():
             if coords != (0, 0) and self.connections.get(direction) is not None:
                 dest_rect = neighbor_rectangles[direction]
@@ -59,11 +68,18 @@ class RomMapEntity(GameMapEntity):
         Render just this entity + neighbors to a PNG image (debug or single-room view).
         """
         if isinstance(filename, str):
-            plt.savefig(filename)
+            plt.savefig(filename, dpi=150, bbox_inches='tight')
         else:
             raise TypeError("Filename must be a string.")
 
-        plt.close(self.fig)
+        self.cleanup()
+
+    def cleanup(self):
+        """Clean up matplotlib resources to free memory"""
+        if self._fig is not None:
+            plt.close(self._fig)
+            self._fig = None
+            self._ax = None
 
     def draw_room(self, center_x: float, center_y: float, label: str, size=10) -> Rectangle:
         """
@@ -78,34 +94,52 @@ class RomMapEntity(GameMapEntity):
             facecolor="lightgray"
         )
         self.ax.add_patch(rect)
-        self.ax.text(center_x, center_y, label, ha="center", va="center", fontsize=6)
+        # Wrap text if too long
+        if len(label) > 15:
+            label = label[:13] + "..."
+        self.ax.text(center_x, center_y, label, ha="center", va="center", fontsize=5, wrap=True)
         return rect
 
     @staticmethod
     def draw_curved_connection(ax, source_rect: Rectangle, dest_rect: Rectangle, direction: str):
         """
-        Draw a curved line (PathPatch) for up/down connections.
+        Draw a curved line (PathPatch) for up/down connections to indicate vertical movement.
+        Uses cubic Bezier curves for smooth arcs.
         """
         src_bbox = source_rect.get_bbox()
         dst_bbox = dest_rect.get_bbox()
 
         if direction == "up":
+            # Start from top of source room, curve to destination
             start_x, start_y = (src_bbox.x0 + src_bbox.x1) / 2, src_bbox.y1
-            end_x, end_y = dst_bbox.x1, dst_bbox.y0
-            control_x = start_x + 15
-            control_y = (start_y + end_y) / 2
+            end_x, end_y = (dst_bbox.x0 + dst_bbox.x1) / 2, (dst_bbox.y0 + dst_bbox.y1) / 2
+            # Two control points for smooth cubic Bezier curve
+            control1_x = start_x + (end_x - start_x) * 0.3
+            control1_y = start_y + (end_y - start_y) * 0.7
+            control2_x = start_x + (end_x - start_x) * 0.7
+            control2_y = start_y + (end_y - start_y) * 0.9
         elif direction == "down":
+            # Start from bottom of source room, curve to destination
             start_x, start_y = (src_bbox.x0 + src_bbox.x1) / 2, src_bbox.y0
-            end_x, end_y = (dst_bbox.x0 + dst_bbox.x1) / 2, dst_bbox.y1
-            control_x = end_x
-            control_y = start_y - 15
+            end_x, end_y = (dst_bbox.x0 + dst_bbox.x1) / 2, (dst_bbox.y0 + dst_bbox.y1) / 2
+            # Two control points for smooth cubic Bezier curve
+            control1_x = start_x + (end_x - start_x) * 0.3
+            control1_y = start_y + (end_y - start_y) * 0.7
+            control2_x = start_x + (end_x - start_x) * 0.7
+            control2_y = start_y + (end_y - start_y) * 0.9
         else:
             return
 
-        vertices = np.array([(start_x, start_y), (control_x, control_y), (end_x, end_y)], dtype=float)
-        codes = [Path.MOVETO, Path.CURVE3, Path.CURVE3]
+        # Create cubic Bezier curve with 4 points
+        vertices = np.array([
+            (start_x, start_y),
+            (control1_x, control1_y),
+            (control2_x, control2_y),
+            (end_x, end_y)
+        ], dtype=float)
+        codes = [Path.MOVETO, Path.CURVE4, Path.CURVE4, Path.CURVE4]
         path = Path(vertices, codes)
-        patch = PathPatch(path, edgecolor="blue", lw=1.5, linestyle="--", fill=False)
+        patch = PathPatch(path, edgecolor="purple", lw=2, linestyle="--", fill=False)
         ax.add_patch(patch)
 
     @staticmethod
@@ -130,47 +164,14 @@ class RomMapEntity(GameMapEntity):
     def generate_entities(area):
         """
         Convert each of area.rooms into a RomMapEntity and return them.
-        No plotting here; just create the entities.
+        Creates one entity per room in the area.
         """
         entities = []
-        x, y = 0, 0
-        skip_list = set()
 
+        # Create an entity for every room in the area
         for i, room in enumerate(area.rooms):
-            if i in skip_list:
-                continue
-
             entity = RomMapEntity(area, i)
-            entity.set_position(x, y)
             entities.append(entity)
 
-            # Mark connected rooms as visited if found by ID.
-            for direction, connected_room_id in entity.connections.items():
-                if connected_room_id is not None:
-                    connected_idx = next(
-                        (idx for idx, r in enumerate(area.rooms) if r.id == connected_room_id),
-                        None
-                    )
-                    if connected_idx is not None:
-                        skip_list.add(connected_idx)
-
-            # Move the 'cursor' to the first neighbor's coords if available
-            for direction, coords in entity.neighbors.items():
-                if coords != (0, 0) and entity.connections.get(direction) is not None:
-                    x, y = coords
-                    break
-
+        print(f"Generated {len(entities)} entities for {len(area.rooms)} rooms")
         return entities
-
-    @staticmethod
-    def _get_room_connections():
-        """Get connections for the current room"""
-        return {
-            'north': ...,
-            'south': ...,
-            'east': ...,
-            'west': ...,
-            'up': ...,
-            'down': ...
-        }
-

@@ -1,11 +1,14 @@
 import os
 import re
 
-from MigrateRiversOfMud.entity import Area
+# Set matplotlib to use non-interactive backend to reduce memory usage
+import matplotlib
+matplotlib.use('Agg')
+
+from MigrateRiversOfMud.entity.Area import Area
 from MigrateRiversOfMud.entity.Orchestrator import Orchestrator
-from MigrateRiversOfMud.presentation import RomDeck
-from MigrateRiversOfMud.presentation.RomLayoutEngine import RomLayoutEngine
-from MigrateRiversOfMud.presentation.RomMapEntity import RomMapEntity
+from MigrateRiversOfMud.presentation import RomDeck, RomLayoutEngine, RomMapEntity
+
 
 
 def snake_case_to_camel(snake_str):
@@ -36,12 +39,80 @@ def migrate_rom(area_dir, dry_run=False, delete_first=False):
     orchestrator.run()
 
 
-def build_presentation(area_files):
+def _build_vnum_to_area_map(area_files):
+    """
+    Build a mapping of VNUM to area name for all areas.
+    This allows cross-deck references to show the target area name.
+    """
+    vnum_to_area = {}
     for area_file in area_files:
-        area = Area(area_file, insert=False)
-        map_entity_list = RomMapEntity.generate_entities(area)
-        print(f"Entity count: {len(map_entity_list)}")
-        break
-        rom_layout_engine = RomLayoutEngine(map_entity_list)
-        rom_layout_engine.render_plot()
-        break
+        try:
+            area = Area(area_file, insert=False)
+            for room in area.rooms:
+                vnum_to_area[room.vnum] = area.name
+        except Exception as e:
+            print(f"Warning: Could not process {area_file} for VNUM mapping: {e}")
+    return vnum_to_area
+
+
+def _process_single_area(args):
+    """Process a single area file for presentation (used for parallel processing)"""
+    area_file, compact_mode, vnum_to_area_map = args
+    import gc
+    print(f"Processing {area_file}...")
+    area = Area(area_file, insert=False)
+    map_entity_list = RomMapEntity.generate_entities(area)
+    print(f"Entity count: {len(map_entity_list)}")
+
+    # Process in batches to reduce memory usage, passing area name and VNUM map for deck naming
+    rom_layout_engine = RomLayoutEngine(
+        map_entity_list,
+        area_name=area.name,
+        compact_mode=compact_mode,
+        vnum_to_area_map=vnum_to_area_map
+    )
+    rom_layout_engine.render_plot()
+
+    # Clean up entities after rendering
+    for entity in map_entity_list:
+        entity.cleanup()
+
+    # Clear references and force garbage collection
+    del map_entity_list
+    del rom_layout_engine
+    del area
+    gc.collect()
+    print(f"Completed {area_file}\n")
+    return area_file
+
+
+def build_presentation(area_files, compact_mode=False, parallel=False):
+    """
+    Build presentation decks for all area files.
+
+    Args:
+        area_files: List of area file paths to process
+        compact_mode: Use compact spacing mode
+        parallel: Process areas in parallel using multiprocessing
+    """
+    import time
+    start_time = time.time()
+
+    # First pass: build VNUM to area name mapping for cross-deck references
+    print("Building VNUM to area mapping...")
+    vnum_to_area_map = _build_vnum_to_area_map(area_files)
+    print(f"Mapped {len(vnum_to_area_map)} rooms across all areas")
+
+    if parallel:
+        import multiprocessing
+        print(f"Processing {len(area_files)} areas in parallel using {multiprocessing.cpu_count()} processors...")
+        with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
+            pool.map(_process_single_area, [(f, compact_mode, vnum_to_area_map) for f in area_files])
+    else:
+        print(f"Processing {len(area_files)} areas sequentially...")
+        for area_file in area_files:
+            _process_single_area((area_file, compact_mode, vnum_to_area_map))
+
+    end_time = time.time()
+    print(f"\nPresentation build completed in {end_time - start_time:.2f} seconds.")
+

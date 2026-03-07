@@ -19,6 +19,24 @@ class GameMapEntity(Rectangle):
         self.neighbors = self._init_neighbors()
         self.raster_depth = 0
         self.rasterizing = False
+        self._fig = None
+        self._ax = None
+
+    @property
+    def fig(self):
+        """Lazy initialization of figure"""
+        if self._fig is None:
+            import matplotlib.pyplot as plt
+            self._fig, self._ax = plt.subplots(figsize=(8, 8))
+        return self._fig
+
+    @property
+    def ax(self):
+        """Lazy initialization of axes"""
+        if self._ax is None:
+            import matplotlib.pyplot as plt
+            self._fig, self._ax = plt.subplots(figsize=(8, 8))
+        return self._ax
 
     def draw(self, ax):
         """
@@ -56,6 +74,16 @@ class GameMapEntity(Rectangle):
             self.set_xy((self.get_x(), self.get_y() - self.get_height()))
         elif anchor_point == "top_right":
             self.set_xy((self.get_x() - self.get_width(), self.get_y() - self.get_height()))
+
+    def set_position(self, x, y):
+        """
+        Set the position of the entity.
+
+        Args:
+            x: The x-coordinate.
+            y: The y-coordinate.
+        """
+        self.set_xy((x, y))
 
     def _init_neighbors(self) -> dict:
         """

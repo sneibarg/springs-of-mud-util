@@ -2,13 +2,17 @@ import os
 from MigrateRiversOfMud import migrate_rom, build_presentation
 
 area_directory = "C:\\Users\\scott\\CLionProjects\\rom24-quickmud\\area"
-presentation = False
+presentation = True
+
+# Feature Flags
+COMPACT_MODE = True  # Set to True for tighter spacing and more content per sheet
+PARALLEL_PROCESSING = False  # Set to True to process areas in parallel
 
 
 def main():
     if presentation:
         area_files = [os.path.join(area_directory, file) for file in os.listdir(area_directory) if file.endswith('.are')]
-        build_presentation(area_files)
+        build_presentation(area_files, compact_mode=COMPACT_MODE, parallel=PARALLEL_PROCESSING)
     else:
         migrate_rom("C:\\Users\\scott\\CLionProjects\\rom24-quickmud\\area", dry_run=False, delete_first=True)
 
