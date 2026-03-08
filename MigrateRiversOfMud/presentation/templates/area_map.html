@@ -646,11 +646,27 @@
                 displaylogo: false
             });
 
-            // Add click handler for room rectangles
+            // Add click handler for room rectangles and connection indicators
             document.getElementById('map-' + index).on('plotly_click', function(data) {
                 if (data.points && data.points[0] && data.points[0].customdata) {
-                    const vnum = data.points[0].customdata;
-                    showRoomInfo(vnum);
+                    const customdata = data.points[0].customdata;
+
+                    // Check if customdata is an array [vnum, area_name] for cross-area navigation
+                    if (Array.isArray(customdata)) {
+                        const vnum = customdata[0];
+                        const targetArea = customdata[1];
+
+                        if (targetArea && targetArea !== null && targetArea !== 'null') {
+                            // Cross-area navigation
+                            navigateToArea(targetArea, vnum);
+                        } else {
+                            // Same-area navigation (off-sheet)
+                            navigateToRoom(vnum);
+                        }
+                    } else {
+                        // Simple vnum (room click)
+                        showRoomInfo(customdata);
+                    }
                 }
             });
         });

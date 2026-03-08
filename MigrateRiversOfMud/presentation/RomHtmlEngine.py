@@ -404,10 +404,16 @@ class RomHtmlEngine:
 
                     # Avoid duplicate connections
                     conn_key = tuple(sorted([entity.room.id, connected_room_id]))
-                    if conn_key not in [c[3] for c in connections]:
+                    if conn_key not in [c[4] for c in connections]:
                         color = 'purple' if direction in ['up', 'down'] else 'green'
                         dash = 'dash' if direction in ['up', 'down'] else 'solid'
                         connections.append((x, y, to_x, to_y, conn_key, color, dash))
+                else:
+                    # Connection not on this sheet - draw indicator
+                    self._add_offsheet_indicator(
+                        x, y, direction, connected_room_id, entity,
+                        shapes, annotations, traces
+                    )
 
         # Draw connections as line shapes
         for x1, y1, x2, y2, _, color, dash in connections:
@@ -456,6 +462,171 @@ class RomHtmlEngine:
         }
 
         return {'traces': traces, 'layout': layout}
+
+    def _add_offsheet_indicator(self, x, y, direction, connected_room_id, entity, shapes, annotations, traces):
+        """
+        Add visual indicator for off-sheet or cross-area connection.
+        Similar to PDF implementation but using Plotly shapes and annotations.
+        """
+        # Direction offsets (where to place the indicator relative to room)
+        direction_offsets = {
+            'north': (0, 0.5),
+            'south': (0, -0.5),
+            'east': (0.5, 0),
+            'west': (-0.5, 0),
+            'up': (0.35, 0.35),
+            'down': (-0.35, -0.35)
+        }
+
+        if direction not in direction_offsets:
+            return
+
+        dx, dy = direction_offsets[direction]
+        arrow_x = x + dx
+        arrow_y = y + dy
+
+        # Check if this is same-area or cross-area
+        connected_room = next((r for r in entity.area.rooms if r.id == connected_room_id), None)
+
+        if connected_room:
+            # Same area, different sheet
+            arrow_color = 'orange'
+            edge_color = 'orange'
+            bg_color = 'yellow'
+            label_text = str(connected_room.vnum)
+            area_label = None
+        else:
+            # Cross-area connection
+            from MigrateRiversOfMud.entity.Room import DirectionMapping
+            direction_map = {
+                'north': DirectionMapping.EXIT_NORTH.value,
+                'south': DirectionMapping.EXIT_SOUTH.value,
+                'east': DirectionMapping.EXIT_EAST.value,
+                'west': DirectionMapping.EXIT_WEST.value,
+                'up': DirectionMapping.EXIT_UP.value,
+                'down': DirectionMapping.EXIT_DOWN.value
+            }
+
+            exit_data = entity.room.exits.get(direction_map.get(direction))
+            target_vnum = exit_data.get('to_room_vnum') if exit_data else None
+
+            arrow_color = 'red'
+            edge_color = 'red'
+            bg_color = 'yellow'
+            label_text = str(target_vnum) if target_vnum and target_vnum > 0 else "?"
+
+            # Get area name
+            if target_vnum and target_vnum in self.vnum_to_area_map:
+                area_name = self.vnum_to_area_map[target_vnum]
+                if len(area_name) > 20:
+                    area_name = area_name[:18] + "..."
+                area_label = area_name
+            else:
+                area_label = "Unknown Area"
+
+        # Draw arrow from room to indicator
+        shapes.append({
+            'type': 'line',
+            'x0': x,
+            'y0': y,
+            'x1': arrow_x,
+            'y1': arrow_y,
+            'line': {'color': arrow_color, 'width': 2},
+            'layer': 'above'
+        })
+
+        # Draw arrowhead (small triangle)
+        arrow_size = 0.08
+        shapes.append({
+            'type': 'path',
+            'path': f'M {arrow_x},{arrow_y} L {arrow_x-arrow_size},{arrow_y-arrow_size} L {arrow_x+arrow_size},{arrow_y-arrow_size} Z',
+            'fillcolor': arrow_color,
+            'line': {'color': arrow_color, 'width': 1},
+            'layer': 'above'
+        })
+
+        # Draw circle with VNUM at arrow end
+        circle_size = 0.15
+        shapes.append({
+            'type': 'circle',
+            'x0': arrow_x - circle_size,
+            'y0': arrow_y - circle_size,
+            'x1': arrow_x + circle_size,
+            'y1': arrow_y + circle_size,
+            'fillcolor': bg_color,
+            'line': {'color': edge_color, 'width': 2},
+            'layer': 'above'
+        })
+
+        # Add VNUM text in circle
+        annotations.append({
+            'x': arrow_x,
+            'y': arrow_y,
+            'text': f'<b>{label_text}</b>',
+            'showarrow': False,
+            'font': {'size': 8, 'color': 'black'},
+            'xanchor': 'center',
+            'yanchor': 'middle'
+        })
+
+        # Add area name label for cross-area connections
+        if area_label:
+            label_x = arrow_x + dx * 0.8
+            label_y = arrow_y + dy * 0.8
+
+            # Small rectangle background for area name
+            rect_width = len(area_label) * 0.08
+            rect_height = 0.2
+            shapes.append({
+                'type': 'rect',
+                'x0': label_x - rect_width / 2,
+                'y0': label_y - rect_height / 2,
+                'x1': label_x + rect_width / 2,
+                'y1': label_y + rect_height / 2,
+                'fillcolor': 'white',
+                'line': {'color': 'red', 'width': 1},
+                'layer': 'above'
+            })
+
+            # Area name text
+            annotations.append({
+                'x': label_x,
+                'y': label_y,
+                'text': f'<b>{area_label}</b>',
+                'showarrow': False,
+                'font': {'size': 7, 'color': 'red'},
+                'xanchor': 'center',
+                'yanchor': 'middle'
+            })
+
+        # Add invisible clickable point for navigation
+        if connected_room:
+            # Same area - navigate within this HTML file
+            vnum_for_click = connected_room.vnum
+            area_for_click = None
+        else:
+            # Cross area - navigate to other HTML file
+            vnum_for_click = target_vnum if target_vnum and target_vnum > 0 else 0
+            area_for_click = area_label
+
+        if vnum_for_click and vnum_for_click > 0:
+            traces.append({
+                'type': 'scatter',
+                'x': [arrow_x],
+                'y': [arrow_y],
+                'mode': 'markers',
+                'marker': {'size': 15, 'opacity': 0.0},  # Invisible but clickable
+                'customdata': [[vnum_for_click, area_for_click]],  # Include both vnum and area
+                'hovertemplate': (
+                    f"<b>{'Off-sheet' if connected_room else 'Cross-area'} Connection</b><br>"
+                    f"Direction: {direction.capitalize()}<br>"
+                    f"Target VNUM: {vnum_for_click}<br>"
+                    f"{'Area: ' + area_for_click if area_for_click else ''}<br>"
+                    f"<i>Click to navigate</i><extra></extra>"
+                ),
+                'name': f'Connection to {vnum_for_click}',
+                'showlegend': False
+            })
 
     def _create_html_file(self, sheet_plotly_data, total_sheets, room_data_map):
         """
