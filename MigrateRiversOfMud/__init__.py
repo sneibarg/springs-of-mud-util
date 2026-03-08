@@ -7,7 +7,7 @@ matplotlib.use('Agg')
 
 from MigrateRiversOfMud.entity.Area import Area
 from MigrateRiversOfMud.entity.Orchestrator import Orchestrator
-from MigrateRiversOfMud.presentation import RomDeck, RomLayoutEngine, RomMapEntity
+from MigrateRiversOfMud.presentation import RomDeck, RomLayoutEngine, RomHtmlEngine, RomMapEntity
 
 
 
@@ -57,21 +57,30 @@ def _build_vnum_to_area_map(area_files):
 
 def _process_single_area(args):
     """Process a single area file for presentation (used for parallel processing)"""
-    area_file, compact_mode, vnum_to_area_map = args
+    area_file, compact_mode, vnum_to_area_map, output_format = args
     import gc
     print(f"Processing {area_file}...")
     area = Area(area_file, insert=False)
     map_entity_list = RomMapEntity.generate_entities(area)
     print(f"Entity count: {len(map_entity_list)}")
 
-    # Process in batches to reduce memory usage, passing area name and VNUM map for deck naming
-    rom_layout_engine = RomLayoutEngine(
-        map_entity_list,
-        area_name=area.name,
-        compact_mode=compact_mode,
-        vnum_to_area_map=vnum_to_area_map
-    )
-    rom_layout_engine.render_plot()
+    # Choose rendering engine based on output format
+    if output_format == 'html':
+        rom_engine = RomHtmlEngine(
+            map_entity_list,
+            area_name=area.name,
+            compact_mode=compact_mode,
+            vnum_to_area_map=vnum_to_area_map
+        )
+        rom_engine.render_html()
+    else:  # pdf (default)
+        rom_engine = RomLayoutEngine(
+            map_entity_list,
+            area_name=area.name,
+            compact_mode=compact_mode,
+            vnum_to_area_map=vnum_to_area_map
+        )
+        rom_engine.render_plot()
 
     # Clean up entities after rendering
     for entity in map_entity_list:
@@ -79,14 +88,14 @@ def _process_single_area(args):
 
     # Clear references and force garbage collection
     del map_entity_list
-    del rom_layout_engine
+    del rom_engine
     del area
     gc.collect()
     print(f"Completed {area_file}\n")
     return area_file
 
 
-def build_presentation(area_files, compact_mode=False, parallel=False):
+def build_presentation(area_files, compact_mode=False, parallel=False, output_format='pdf'):
     """
     Build presentation decks for all area files.
 
@@ -94,6 +103,7 @@ def build_presentation(area_files, compact_mode=False, parallel=False):
         area_files: List of area file paths to process
         compact_mode: Use compact spacing mode
         parallel: Process areas in parallel using multiprocessing
+        output_format: Output format - 'pdf' or 'html' (default: 'pdf')
     """
     import time
     start_time = time.time()
@@ -103,15 +113,18 @@ def build_presentation(area_files, compact_mode=False, parallel=False):
     vnum_to_area_map = _build_vnum_to_area_map(area_files)
     print(f"Mapped {len(vnum_to_area_map)} rooms across all areas")
 
+    output_desc = "interactive HTML pages" if output_format == 'html' else "PDF decks"
+    print(f"Output format: {output_format.upper()} ({output_desc})")
+
     if parallel:
         import multiprocessing
         print(f"Processing {len(area_files)} areas in parallel using {multiprocessing.cpu_count()} processors...")
         with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:
-            pool.map(_process_single_area, [(f, compact_mode, vnum_to_area_map) for f in area_files])
+            pool.map(_process_single_area, [(f, compact_mode, vnum_to_area_map, output_format) for f in area_files])
     else:
         print(f"Processing {len(area_files)} areas sequentially...")
         for area_file in area_files:
-            _process_single_area((area_file, compact_mode, vnum_to_area_map))
+            _process_single_area((area_file, compact_mode, vnum_to_area_map, output_format))
 
     end_time = time.time()
     print(f"\nPresentation build completed in {end_time - start_time:.2f} seconds.")

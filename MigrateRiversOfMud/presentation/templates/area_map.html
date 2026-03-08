@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ area_name }} - Area Map</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root {
+            --bg-gradient-1: #667eea;
+            --bg-gradient-2: #764ba2;
+            --container-bg: white;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --text-tertiary: #495057;
+            --nav-bg: #f8f9fa;
+            --border-color: #e9ecef;
+            --border-color-light: #dee2e6;
+            --card-bg: white;
+            --shadow-color: rgba(0, 0, 0, 0.2);
+            --legend-border: #667eea;
+            --hover-color: rgba(102, 126, 234, 0.1);
+        }
+
+        [data-theme="dark"] {
+            --bg-gradient-1: #1a1a2e;
+            --bg-gradient-2: #16213e;
+            --container-bg: #0f3460;
+            --text-primary: #e9ecef;
+            --text-secondary: #adb5bd;
+            --text-tertiary: #dee2e6;
+            --nav-bg: #16213e;
+            --border-color: #2c3e50;
+            --border-color-light: #34495e;
+            --card-bg: #1a1a2e;
+            --shadow-color: rgba(0, 0, 0, 0.5);
+            --legend-border: #53a8d8;
+            --hover-color: rgba(83, 168, 216, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 100%);
+            min-height: 100vh;
+            padding: 20px;
+            transition: background 0.3s ease;
+            color: var(--text-primary);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: var(--container-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px var(--shadow-color);
+            overflow: hidden;
+            transition: background 0.3s ease;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--bg-gradient-1) 0%, var(--bg-gradient-2) 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .navigation {
+            background: var(--nav-bg);
+            padding: 15px 30px;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            transition: background 0.3s ease;
+        }
+
+        .sheet-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sheet-selector label {
+            font-weight: 600;
+            color: var(--text-tertiary);
+        }
+
+        .sheet-selector select {
+            padding: 8px 16px;
+            border: 2px solid var(--border-color-light);
+            border-radius: 6px;
+            font-size: 1rem;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sheet-selector select:hover {
+            border-color: #667eea;
+        }
+
+        .sheet-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px var(--hover-color);
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .stat-item strong {
+            color: var(--text-tertiary);
+        }
+
+        .map-container {
+            padding: 30px;
+            min-height: 600px;
+            background: var(--container-bg);
+            transition: background 0.3s ease;
+        }
+
+        .sheet-view {
+            display: none;
+        }
+
+        .sheet-view.active {
+            display: block;
+        }
+
+        .legend {
+            background: var(--nav-bg);
+            padding: 20px;
+            margin: 20px 30px;
+            border-radius: 8px;
+            border-left: 4px solid var(--legend-border);
+            transition: background 0.3s ease;
+        }
+
+        .legend h3 {
+            margin-bottom: 15px;
+            color: var(--text-tertiary);
+            font-size: 1.2rem;
+        }
+
+        .legend-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 12px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            background: var(--card-bg);
+            border-radius: 6px;
+            transition: background 0.3s ease;
+        }
+
+        .legend-color {
+            width: 30px;
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color-light);
+        }
+
+        .legend-line {
+            width: 30px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        .legend-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .footer {
+            background: var(--nav-bg);
+            padding: 20px 30px;
+            text-align: center;
+            color: var(--text-secondary);
+            border-top: 2px solid var(--border-color);
+            transition: background 0.3s ease;
+        }
+
+        .room-info-panel {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            width: 400px;
+            height: 100vh;
+            background: var(--container-bg);
+            box-shadow: -5px 0 15px var(--shadow-color);
+            padding: 30px;
+            overflow-y: auto;
+            transition: right 0.3s ease, background 0.3s ease;
+            z-index: 1000;
+        }
+
+        .room-info-panel.active {
+            right: 0;
+        }
+
+        .room-info-panel .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 2rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .room-info-panel .close-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .room-info-content h2 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            padding-right: 40px;
+        }
+
+        .room-info-content .info-section {
+            margin-bottom: 20px;
+        }
+
+        .room-info-content .info-label {
+            font-weight: 600;
+            color: var(--text-tertiary);
+            margin-bottom: 5px;
+        }
+
+        .room-info-content .info-value {
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .room-info-content .exit-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .room-info-content .exit-item {
+            padding: 8px 12px;
+            margin: 5px 0;
+            background: var(--nav-bg);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .room-info-content .exit-item:hover {
+            background: var(--border-color);
+            transform: translateX(5px);
+        }
+
+        .room-info-content .exit-item .exit-direction {
+            font-weight: 600;
+            color: var(--legend-border);
+        }
+
+        .room-info-content .exit-item .exit-vnum {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .room-info-content .exit-item.cross-area-exit {
+            border-left: 3px solid #e74c3c;
+            background: var(--card-bg);
+        }
+
+        .room-info-content .exit-item.cross-area-exit:hover {
+            background: #fee;
+            border-left-color: #c0392b;
+        }
+
+        [data-theme="dark"] .room-info-content .exit-item.cross-area-exit:hover {
+            background: #4a1a1a;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .theme-toggle {
+                position: static;
+                margin: 10px auto 0;
+            }
+
+            .navigation {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .stats {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .room-info-panel {
+                width: 100%;
+                right: -100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="theme-toggle" onclick="toggleTheme()">
+                <span id="theme-icon">🌙</span>
+                <span id="theme-text">Dark Mode</span>
+            </button>
+            <h1>🗺️ {{ area_name }}</h1>
+            <p>Interactive Area Map</p>
+        </div>
+
+        <div class="navigation">
+            <div class="sheet-selector">
+                <label for="sheet-select">View Sheet:</label>
+                <select id="sheet-select" onchange="switchSheet(this.value)">
+                    {% for i in range(total_sheets) %}
+                    <option value="{{ i }}" {% if i == 0 %}selected{% endif %}>
+                        Sheet {{ i + 1 }} of {{ total_sheets }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <strong>Total Rooms:</strong> {{ total_rooms }}
+                </div>
+                <div class="stat-item">
+                    <strong>Sheets:</strong> {{ total_sheets }}
+                </div>
+                <div class="stat-item">
+                    <strong>💡 Tip:</strong> Hover over info icons or click rooms
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            {% for sheet_num in range(total_sheets) %}
+            <div id="sheet-{{ sheet_num }}" class="sheet-view {% if sheet_num == 0 %}active{% endif %}">
+                <div id="map-{{ sheet_num }}"></div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="legend">
+            <h3>Legend</h3>
+            <div class="legend-items">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: lightblue; border-color: black;"></div>
+                    <span>Room (click to view details)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-circle" style="background: steelblue;">i</div>
+                    <span>Info (hover for quick view)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line" style="background: green;"></div>
+                    <span>Horizontal Connection</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line" style="background: purple;"></div>
+                    <span>Up/Down Connection</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: yellow; border-color: orange;"></div>
+                    <span>Off-Sheet (same area)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: yellow; border-color: red;"></div>
+                    <span>Cross-Area (click to navigate)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Generated by RoM Map Generator | Interactive HTML Version</p>
+            <p style="margin-top: 8px; font-size: 0.9rem;">Hover for quick info • Click for detailed view • Use ← → to navigate sheets</p>
+        </div>
+    </div>
+
+    <!-- Room info side panel -->
+    <div id="room-info-panel" class="room-info-panel">
+        <button class="close-btn" onclick="closeRoomPanel()">&times;</button>
+        <div class="room-info-content" id="room-info-content">
+            <!-- Will be populated dynamically -->
+        </div>
+    </div>
+
+    <script>
+        // Sheet data will be injected here
+        const sheetData = {{ sheet_data_json|safe }};
+        const roomDataMap = {{ room_data_map|safe }};
+
+        // Theme management
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+
+            // Update button text and icon
+            const icon = document.getElementById('theme-icon');
+            const text = document.getElementById('theme-text');
+            if (newTheme === 'dark') {
+                icon.textContent = '☀️';
+                text.textContent = 'Light Mode';
+            } else {
+                icon.textContent = '🌙';
+                text.textContent = 'Dark Mode';
+            }
+
+            // Update Plotly plots for dark theme
+            updatePlotsTheme(newTheme);
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('theme-icon').textContent = '☀️';
+            document.getElementById('theme-text').textContent = 'Light Mode';
+        }
+
+        function updatePlotsTheme(theme) {
+            const isDark = theme === 'dark';
+            const bgColor = isDark ? '#0f3460' : 'white';
+            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+            const textColor = isDark ? '#e9ecef' : '#495057';
+
+            sheetData.forEach((data, index) => {
+                const update = {
+                    'plot_bgcolor': bgColor,
+                    'paper_bgcolor': bgColor,
+                    'xaxis.gridcolor': gridColor,
+                    'yaxis.gridcolor': gridColor,
+                    'title.font.color': textColor
+                };
+                Plotly.relayout('map-' + index, update);
+            });
+        }
+
+        function switchSheet(sheetNum) {
+            // Hide all sheets
+            document.querySelectorAll('.sheet-view').forEach(sheet => {
+                sheet.classList.remove('active');
+            });
+
+            // Show selected sheet
+            document.getElementById('sheet-' + sheetNum).classList.add('active');
+        }
+
+        function showRoomInfo(vnum) {
+            const roomData = roomDataMap[vnum];
+            if (!roomData) return;
+
+            const panel = document.getElementById('room-info-panel');
+            const content = document.getElementById('room-info-content');
+
+            let exitsHtml = '<p class="info-value">No exits</p>';
+            if (roomData.exits && roomData.exits.length > 0) {
+                exitsHtml = '<ul class="exit-list">';
+                roomData.exits.forEach(exit => {
+                    // Make all exits clickable - cross-area will navigate to other HTML file
+                    const areaParam = exit.targetArea ? `, '${exit.targetArea}'` : '';
+                    const onclick = `onclick="navigateToRoom(${exit.vnum}${areaParam})"`;
+                    const crossAreaClass = exit.targetArea ? ' cross-area-exit' : '';
+                    exitsHtml += `
+                        <li class="exit-item${crossAreaClass}" ${onclick}>
+                            <span class="exit-direction">${exit.direction}</span>
+                            <span class="exit-vnum">${exit.label}</span>
+                        </li>
+                    `;
+                });
+                exitsHtml += '</ul>';
+            }
+
+            content.innerHTML = `
+                <h2>${roomData.name}</h2>
+                <div class="info-section">
+                    <div class="info-label">VNUM</div>
+                    <div class="info-value">#${roomData.vnum}</div>
+                </div>
+                <div class="info-section">
+                    <div class="info-label">Sector Type</div>
+                    <div class="info-value">${roomData.sector}</div>
+                </div>
+                <div class="info-section">
+                    <div class="info-label">Description</div>
+                    <div class="info-value">${roomData.description}</div>
+                </div>
+                <div class="info-section">
+                    <div class="info-label">Exits</div>
+                    ${exitsHtml}
+                </div>
+            `;
+
+            panel.classList.add('active');
+        }
+
+        function closeRoomPanel() {
+            document.getElementById('room-info-panel').classList.remove('active');
+        }
+
+        function navigateToRoom(vnum, targetArea) {
+            // If targetArea is specified and different from current area, navigate to other HTML file
+            if (targetArea && targetArea !== '{{ area_name }}') {
+                navigateToArea(targetArea, vnum);
+                return;
+            }
+
+            const roomData = roomDataMap[vnum];
+            if (!roomData) {
+                console.warn('Room not found:', vnum);
+                return;
+            }
+
+            // Switch to the sheet containing this room
+            if (roomData.sheet !== undefined) {
+                const select = document.getElementById('sheet-select');
+                select.value = roomData.sheet;
+                switchSheet(roomData.sheet);
+            }
+
+            // Show room info
+            showRoomInfo(vnum);
+        }
+
+        function navigateToArea(areaName, vnum) {
+            // Sanitize area name for filename (same logic as Python)
+            const filename = 'map_' + areaName.replace(/[<>:"\/\\|?*]/g, '_').replace(/ /g, '_') + '.html';
+            const url = filename + '?vnum=' + vnum;
+
+            // Navigate to the other area's HTML file
+            window.location.href = url;
+        }
+
+        function getUrlParameter(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        function handleUrlParameters() {
+            const vnum = getUrlParameter('vnum');
+            if (vnum) {
+                const vnumInt = parseInt(vnum);
+                // Small delay to ensure maps are rendered
+                setTimeout(() => {
+                    navigateToRoom(vnumInt);
+                }, 500);
+            }
+        }
+
+        // Render all Plotly maps
+        sheetData.forEach((data, index) => {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            if (isDark) {
+                data.layout.plot_bgcolor = '#0f3460';
+                data.layout.paper_bgcolor = '#0f3460';
+                data.layout.xaxis.gridcolor = 'rgba(255,255,255,0.1)';
+                data.layout.yaxis.gridcolor = 'rgba(255,255,255,0.1)';
+                data.layout.title.font.color = '#e9ecef';
+            }
+
+            Plotly.newPlot('map-' + index, data.traces, data.layout, {
+                responsive: true,
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['select2d', 'lasso2d'],
+                displaylogo: false
+            });
+
+            // Add click handler for room rectangles
+            document.getElementById('map-' + index).on('plotly_click', function(data) {
+                if (data.points && data.points[0] && data.points[0].customdata) {
+                    const vnum = data.points[0].customdata;
+                    showRoomInfo(vnum);
+                }
+            });
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            const select = document.getElementById('sheet-select');
+            const current = parseInt(select.value);
+            const max = {{ total_sheets }} - 1;
+
+            if (e.key === 'ArrowLeft' && current > 0) {
+                select.value = current - 1;
+                switchSheet(current - 1);
+            } else if (e.key === 'ArrowRight' && current < max) {
+                select.value = current + 1;
+                switchSheet(current + 1);
+            } else if (e.key === 'Escape') {
+                closeRoomPanel();
+            }
+        });
+
+        // Close panel when clicking outside
+        document.addEventListener('click', (e) => {
+            const panel = document.getElementById('room-info-panel');
+            if (panel.classList.contains('active') &&
+                !panel.contains(e.target) &&
+                !e.target.closest('.plotly')) {
+                closeRoomPanel();
+            }
+        });
+
+        // Handle URL parameters for deep linking
+        handleUrlParameters();
+    </script>
+</body>
+</html>
