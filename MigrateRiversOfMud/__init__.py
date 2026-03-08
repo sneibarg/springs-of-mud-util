@@ -45,13 +45,19 @@ def _build_vnum_to_area_map(area_files):
     This allows cross-deck references to show the target area name.
     """
     vnum_to_area = {}
+    none_count = 0
     for area_file in area_files:
         try:
             area = Area(area_file, insert=False)
+            if area.name is None:
+                print(f"Warning: Area {area_file} has no name!")
+                none_count += 1
             for room in area.rooms:
                 vnum_to_area[room.vnum] = area.name
         except Exception as e:
             print(f"Warning: Could not process {area_file} for VNUM mapping: {e}")
+    if none_count > 0:
+        print(f"Warning: {none_count} areas have no name set")
     return vnum_to_area
 
 

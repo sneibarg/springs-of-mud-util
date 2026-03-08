@@ -392,6 +392,7 @@ class RomHtmlEngine:
             })
 
             # Process connections for drawing
+            # First, handle same-area connections from entity.connections
             for direction, connected_room_id in entity.connections.items():
                 if not connected_room_id:
                     continue
@@ -412,6 +413,31 @@ class RomHtmlEngine:
                     # Connection not on this sheet - draw indicator
                     self._add_offsheet_indicator(
                         x, y, direction, connected_room_id, entity,
+                        shapes, annotations, traces
+                    )
+
+            # Second, check for cross-area connections that aren't in entity.connections
+            from MigrateRiversOfMud.entity.Room import DirectionMapping
+            direction_map = {
+                'north': DirectionMapping.EXIT_NORTH.value,
+                'south': DirectionMapping.EXIT_SOUTH.value,
+                'east': DirectionMapping.EXIT_EAST.value,
+                'west': DirectionMapping.EXIT_WEST.value,
+                'up': DirectionMapping.EXIT_UP.value,
+                'down': DirectionMapping.EXIT_DOWN.value
+            }
+
+            for direction_name, direction_value in direction_map.items():
+                # Skip if we already processed this direction (same-area connection)
+                if entity.connections.get(direction_name):
+                    continue
+
+                # Check if there's an exit in this direction
+                exit_data = entity.room.exits.get(direction_value)
+                if exit_data and exit_data.get('to_room_vnum'):
+                    # This is a cross-area connection - draw indicator
+                    self._add_offsheet_indicator(
+                        x, y, direction_name, None, entity,
                         shapes, annotations, traces
                     )
 
@@ -467,6 +493,9 @@ class RomHtmlEngine:
         """
         Add visual indicator for off-sheet or cross-area connection.
         Similar to PDF implementation but using Plotly shapes and annotations.
+
+        Args:
+            connected_room_id: Room ID if same-area, None if cross-area
         """
         # Direction offsets (where to place the indicator relative to room)
         direction_offsets = {
@@ -486,7 +515,9 @@ class RomHtmlEngine:
         arrow_y = y + dy
 
         # Check if this is same-area or cross-area
-        connected_room = next((r for r in entity.area.rooms if r.id == connected_room_id), None)
+        connected_room = None
+        if connected_room_id:
+            connected_room = next((r for r in entity.area.rooms if r.id == connected_room_id), None)
 
         if connected_room:
             # Same area, different sheet
@@ -518,10 +549,15 @@ class RomHtmlEngine:
             # Get area name
             if target_vnum and target_vnum in self.vnum_to_area_map:
                 area_name = self.vnum_to_area_map[target_vnum]
-                if len(area_name) > 20:
-                    area_name = area_name[:18] + "..."
-                area_label = area_name
+                if area_name:
+                    if len(area_name) > 20:
+                        area_name = area_name[:18] + "..."
+                    area_label = area_name
+                else:
+                    print(f"Warning: VNUM {target_vnum} maps to None (from room {entity.room.vnum})")
+                    area_label = "Unknown Area"
             else:
+                print(f"Warning: VNUM {target_vnum} not found in vnum_to_area_map (from room {entity.room.vnum})")
                 area_label = "Unknown Area"
 
         # Draw arrow from room to indicator

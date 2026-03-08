@@ -43,11 +43,12 @@ class Area:
             self.lines = [line.strip() for line in f.readlines()]
 
     def _populate_self(self):
-        pattern = r"{\s*(?P<level_range>[\d\s-]+)\s*}\s*(?P<author>\S+)\s+(?P<area_name>.*?)~"
+        # Updated pattern to handle text level ranges like "All" as well as numeric ones
+        pattern = r"{\s*(?P<level_range>[^}]+)\s*}\s*(?P<author>\S+)\s+(?P<area_name>.*?)~"
         for line in self.lines:
             match = re.search(pattern, line)
             if match:
-                self.suggested_level_range = match.group("level_range")
+                self.suggested_level_range = match.group("level_range").strip()
                 self.author = match.group("author")
                 self.name = match.group("area_name").strip() or "Unnamed Area"
 
