@@ -17,14 +17,36 @@ class Mobile:
         self.act_flags = None
         self.affect_flags = None
         self.alignment = None
+        self.group = None
         self.level = None
         self.hitroll = None
-        self.damage = None
-        self.race = None
-        self.sex = None
-        self.gold = None
+        self.hit_dice_number = None
+        self.hit_dice_type = None
+        self.hit_dice_bonus = None
+        self.mana_dice_number = None
+        self.mana_dice_type = None
+        self.mana_dice_bonus = None
+        self.damage_dice_number = None
+        self.damage_dice_type = None
+        self.damage_dice_bonus = None
+        self.dam_type = None
+        self.ac_pierce = None
+        self.ac_bash = None
+        self.ac_slash = None
+        self.ac_exotic = None
+        self.off_flags = None
+        self.imm_flags = None
+        self.res_flags = None
+        self.vuln_flags = None
         self.start_pos = None
         self.default_pos = None
+        self.sex = None
+        self.gold = None
+        self.form = None
+        self.parts = None
+        self.size = None
+        self.material = None
+        self.race = None
         self.flags = None
         self.logger = setup_logger("Mobile", filename)
 
@@ -50,111 +72,149 @@ class Mobile:
         index += 1
         self.logger.debug(f"Mobile name {self.name} and short description {self.short_descr}")
 
-        # Act flags, affect flags (these are read as flags, not simple numbers)
+        # Act flags, affect flags, alignment, group (all on one line)
         if index < len(lines):
             line = lines[index].strip()
             tokens = line.split()
-            if len(tokens) >= 2:
+            if len(tokens) >= 4:
                 self.act_flags = int(tokens[0]) if tokens[0].isdigit() else 0
                 self.affect_flags = int(tokens[1]) if tokens[1].isdigit() else 0
-                index += 1
+                self.alignment = int(tokens[2])
+                self.group = int(tokens[3])
             else:
-                self.logger.warning(f"Invalid mobile act/affect flags line: {line}, setting defaults.")
+                self.logger.warning(f"Invalid mobile act/affect/align/group line: {line}, setting defaults.")
                 self.act_flags = 0
                 self.affect_flags = 0
-
-        # Alignment and group
-        if index < len(lines):
-            tokens = lines[index].split()
-            if len(tokens) >= 2:
-                self.alignment = int(tokens[0])
-                # group is tokens[1], but we're not storing it
-                index += 1
-            else:
-                self.logger.warning("Invalid mobile alignment/group line, setting defaults.")
                 self.alignment = 0
+                self.group = 0
+            index += 1
 
-        # Level and hitroll
+        # Level, hitroll, hit dice, mana dice, damage dice, dam_type (all on one line)
+        # Format: level hitroll NdN+N NdN+N NdN+N dam_type
         if index < len(lines):
             tokens = lines[index].split()
-            if len(tokens) >= 2:
+            if len(tokens) >= 6:
                 self.level = int(tokens[0])
                 self.hitroll = int(tokens[1])
-                index += 1
+                self._parse_dice(tokens[2], 'hit')
+                self._parse_dice(tokens[3], 'mana')
+                self._parse_dice(tokens[4], 'damage')
+                self.dam_type = tokens[5]
             else:
-                self.logger.warning("Invalid mobile level/hitroll line, setting defaults.")
+                self.logger.warning(f"Invalid mobile level/hitroll/dice line: {tokens}, setting defaults.")
                 self.level = 0
                 self.hitroll = 0
-
-        # Hit dice (format: NdN+N)
-        if index < len(lines):
-            # Skip hit dice line - we don't store this
+                self.hit_dice_number = 0
+                self.hit_dice_type = 0
+                self.hit_dice_bonus = 0
+                self.mana_dice_number = 0
+                self.mana_dice_type = 0
+                self.mana_dice_bonus = 0
+                self.damage_dice_number = 0
+                self.damage_dice_type = 0
+                self.damage_dice_bonus = 0
+                self.dam_type = 'none'
             index += 1
 
-        # Mana dice (format: NdN+N)
+        # AC values (4 numbers: pierce, bash, slash, exotic)
         if index < len(lines):
-            # Skip mana dice line - we don't store this
-            index += 1
-
-        # Damage dice (format: NdN+N) and dam_type (word)
-        if index < len(lines):
-            line = lines[index].strip()
-            # Extract damage dice portion (e.g., "1d4+0")
-            tokens = line.split()
-            if tokens:
-                self.damage = tokens[0]
+            tokens = lines[index].split()
+            if len(tokens) >= 4:
+                self.ac_pierce = int(tokens[0]) * 10
+                self.ac_bash = int(tokens[1]) * 10
+                self.ac_slash = int(tokens[2]) * 10
+                self.ac_exotic = int(tokens[3]) * 10
             else:
-                self.damage = "0d0+0"
-            # dam_type is the second token, but we don't store it separately
-            index += 1
-
-        # AC values (4 numbers)
-        if index < len(lines):
-            # Skip AC line - we don't store this
+                self.logger.warning("Invalid AC line, setting defaults.")
+                self.ac_pierce = 0
+                self.ac_bash = 0
+                self.ac_slash = 0
+                self.ac_exotic = 0
             index += 1
 
         # Off/imm/res/vuln flags (4 flag values)
         if index < len(lines):
-            # Skip flags line - we don't store this
+            tokens = lines[index].split()
+            if len(tokens) >= 4:
+                self.off_flags = int(tokens[0]) if tokens[0].isdigit() else 0
+                self.imm_flags = int(tokens[1]) if tokens[1].isdigit() else 0
+                self.res_flags = int(tokens[2]) if tokens[2].isdigit() else 0
+                self.vuln_flags = int(tokens[3]) if tokens[3].isdigit() else 0
+            else:
+                self.logger.warning("Invalid flags line, setting defaults.")
+                self.off_flags = 0
+                self.imm_flags = 0
+                self.res_flags = 0
+                self.vuln_flags = 0
             index += 1
 
-        # Start pos, default pos, sex (3 words)
+        # Start pos, default pos, sex, gold (all on one line)
         if index < len(lines):
             tokens = lines[index].split()
-            if len(tokens) >= 3:
-                # These are words, need to map to numbers
-                # For now, store as-is or use simple mapping
+            if len(tokens) >= 4:
                 self.start_pos = self._position_lookup(tokens[0])
                 self.default_pos = self._position_lookup(tokens[1])
                 self.sex = self._sex_lookup(tokens[2])
-                index += 1
+                self.gold = int(tokens[3])
             else:
-                self.logger.warning("Invalid mobile pos/sex line, setting defaults.")
-                self.start_pos = 0
-                self.default_pos = 0
+                self.logger.warning(f"Invalid mobile pos/sex/gold line: {tokens}, setting defaults.")
+                self.start_pos = 8
+                self.default_pos = 8
                 self.sex = 0
-
-        # Wealth (gold)
-        if index < len(lines):
-            tokens = lines[index].split()
-            if tokens and tokens[0].isdigit():
-                self.gold = int(tokens[0])
-                index += 1
-            else:
                 self.gold = 0
-
-        # Form and parts flags
-        if index < len(lines):
-            # Skip form/parts line - we don't store this
             index += 1
 
-        # Size and material (2 words)
+        # Form, parts, size, material (all on one line)
         if index < len(lines):
-            # Skip size/material line - we don't store this
+            tokens = lines[index].split()
+            if len(tokens) >= 4:
+                self.form = int(tokens[0]) if tokens[0].isdigit() else 0
+                self.parts = int(tokens[1]) if tokens[1].isdigit() else 0
+                self.size = tokens[2]
+                self.material = tokens[3]
+            else:
+                self.logger.warning(f"Invalid form/parts/size/material line: {tokens}, setting defaults.")
+                self.form = 0
+                self.parts = 0
+                self.size = 'medium'
+                self.material = 'unknown'
             index += 1
 
         # There may be additional 'F' flag removal lines, but we'll skip those
         self.flags = 0  # Set default for flags field
+
+    def _parse_dice(self, dice_str, dice_type):
+        """Parse dice notation (e.g., '2d6+3') and store components"""
+        try:
+            # Format: NdN+N or NdN-N
+            if 'd' in dice_str:
+                parts = dice_str.replace('-', '+-').split('d')
+                number = int(parts[0])
+
+                if '+' in parts[1]:
+                    type_bonus = parts[1].split('+')
+                    dice_type_val = int(type_bonus[0])
+                    bonus = int(type_bonus[1]) if len(type_bonus) > 1 else 0
+                else:
+                    dice_type_val = int(parts[1])
+                    bonus = 0
+
+                if dice_type == 'hit':
+                    self.hit_dice_number = number
+                    self.hit_dice_type = dice_type_val
+                    self.hit_dice_bonus = bonus
+                elif dice_type == 'mana':
+                    self.mana_dice_number = number
+                    self.mana_dice_type = dice_type_val
+                    self.mana_dice_bonus = bonus
+                elif dice_type == 'damage':
+                    self.damage_dice_number = number
+                    self.damage_dice_type = dice_type_val
+                    self.damage_dice_bonus = bonus
+            else:
+                self.logger.warning(f"Invalid dice notation: {dice_str}")
+        except Exception as e:
+            self.logger.warning(f"Error parsing dice '{dice_str}': {e}")
 
     def _position_lookup(self, pos_str):
         """Map position string to number"""
@@ -212,17 +272,39 @@ class Mobile:
             'shortDescription': self.short_descr,
             'longDescription': self.long_descr,
             'description': self.description,
+            'race': self.race,
             'actFlags': self.act_flags,
             'affectFlags': self.affect_flags,
             'alignment': self.alignment,
+            'group': self.group,
             'level': self.level,
             'hitroll': self.hitroll,
-            'damage': self.damage,
-            'race': self.race,
-            'sex': self.sex,
-            'gold': self.gold,
+            'hitDiceNumber': self.hit_dice_number,
+            'hitDiceType': self.hit_dice_type,
+            'hitDiceBonus': self.hit_dice_bonus,
+            'manaDiceNumber': self.mana_dice_number,
+            'manaDiceType': self.mana_dice_type,
+            'manaDiceBonus': self.mana_dice_bonus,
+            'damageDiceNumber': self.damage_dice_number,
+            'damageDiceType': self.damage_dice_type,
+            'damageDiceBonus': self.damage_dice_bonus,
+            'damType': self.dam_type,
+            'acPierce': self.ac_pierce,
+            'acBash': self.ac_bash,
+            'acSlash': self.ac_slash,
+            'acExotic': self.ac_exotic,
+            'offFlags': self.off_flags,
+            'immFlags': self.imm_flags,
+            'resFlags': self.res_flags,
+            'vulnFlags': self.vuln_flags,
             'startPos': self.start_pos,
             'defaultPos': self.default_pos,
+            'sex': self.sex,
+            'gold': self.gold,
+            'form': self.form,
+            'parts': self.parts,
+            'size': self.size,
+            'material': self.material,
             'flags': self.flags,
             'id': self.id
         }

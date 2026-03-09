@@ -272,6 +272,7 @@ class Area:
             if not self.insert:
                 self.logger.info(f"[DRY RUN] Item payload: {json.dumps(payload, indent=2)}")
                 continue
+            self.logger.info(f"Inserting item: {payload}")
             response = post(payload, api_endpoints['item'] + "items")
             if not response:
                 self.logger.error("Failed to post to Item API endpoint: " + str(response))

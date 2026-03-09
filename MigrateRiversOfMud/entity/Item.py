@@ -13,13 +13,19 @@ class Item:
         self.name = None
         self.short_descr = None
         self.long_descr = None
-        self.description = None
+        self.material = None
         self.item_type = None
         self.extra_flags = None
         self.wear_flags = None
-        self.value = None
-        self.weight = None
+        self.value0 = None
+        self.value1 = None
+        self.value2 = None
+        self.value3 = None
+        self.value4 = None
         self.level = None
+        self.weight = None
+        self.cost = None
+        self.condition = None
         self.affect_data = []
         self.extra_descr = []
         self.logger = setup_logger("Item", filename)
@@ -36,19 +42,20 @@ class Item:
         index = 1
         self.vnum = lines[0][1:]
 
-        # Name, short description, long description, material (each terminated with ~)
-        self.name = self._parse_terminated_string(self.logger, lines, index)
+        # Name, short description (each terminated with ~ on same line)
+        self.name = self._parse_terminated_string(lines, index)
         index += 1
-        self.short_descr = self._parse_terminated_string(self.logger, lines, index)
-        index += 1
-        self.long_descr = self._parse_terminated_string(self.logger, lines, index)
-        index += 1
-        # Material string (terminated with ~) - often this is the long description in old format
-        # In new ROM 2.4 format, this is the material field
-        self.description = self._parse_terminated_string(self.logger, lines, index)
+        self.short_descr = self._parse_terminated_string(lines, index)
         index += 1
 
-        # Item type (word), extra flags (flag), wear flags (flag)
+        # Long description (can be multiline, terminated with ~)
+        self.long_descr, index = self._parse_multiline_terminated_string(lines, index)
+
+        # Material (terminated with ~ on same line)
+        self.material = self._parse_terminated_string(lines, index)
+        index += 1
+
+        # Item type (word), extra flags (flag), wear flags (flag) - all on one line
         if index < len(lines):
             line = lines[index].strip()
             tokens = line.split()
@@ -56,42 +63,48 @@ class Item:
                 self.item_type = tokens[0]
                 self.extra_flags = tokens[1]
                 self.wear_flags = tokens[2]
-                index += 1
             else:
                 self.logger.warning(f"Invalid item type/flags line: {line}, setting defaults.")
                 self.item_type = "unknown"
-                self.extra_flags = 0
-                self.wear_flags = 0
+                self.extra_flags = "0"
+                self.wear_flags = "0"
+            index += 1
 
-        # Value fields - this is complex in ROM, we'll read one line with values
-        # The format varies by item_type, but we'll just store the raw line
+        # Value fields (5 values) - all on one line
         if index < len(lines):
             line = lines[index].strip()
-            # Check if this is an 'A', 'F', or 'E' line (affect/flag/extra)
-            if not line or line[0] in ('A', 'F', 'E'):
-                self.value = ""
+            tokens = line.split()
+            if len(tokens) >= 5:
+                self.value0 = tokens[0]
+                self.value1 = tokens[1]
+                self.value2 = tokens[2]
+                self.value3 = tokens[3]
+                self.value4 = tokens[4]
             else:
-                self.value = line
-                index += 1
+                self.logger.warning(f"Invalid item values line: {line}, setting defaults.")
+                self.value0 = "0"
+                self.value1 = "0"
+                self.value2 = "0"
+                self.value3 = "0"
+                self.value4 = "0"
+            index += 1
 
-        # Level, weight, cost
+        # Level, weight, cost, condition - all on one line
         if index < len(lines):
             line = lines[index].strip()
-            # Check if this is an 'A', 'F', or 'E' line
-            if line and line[0] not in ('A', 'F', 'E'):
-                tokens = line.split()
-                if len(tokens) >= 3:
-                    self.level = int(tokens[0]) if tokens[0].lstrip('-').isdigit() else 0
-                    self.weight = int(tokens[1]) if tokens[1].lstrip('-').isdigit() else 0
-                    # tokens[2] is cost, we don't store it
-                index += 1
-
-        # Condition letter (single character like 'P', 'G', etc.)
-        if index < len(lines):
-            line = lines[index].strip()
-            if line and len(line) == 1 and line[0].isalpha() and line[0] not in ('A', 'F', 'E'):
-                # This is the condition letter, skip it
-                index += 1
+            tokens = line.split()
+            if len(tokens) >= 4:
+                self.level = int(tokens[0]) if tokens[0].lstrip('-').isdigit() else 0
+                self.weight = int(tokens[1]) if tokens[1].lstrip('-').isdigit() else 0
+                self.cost = int(tokens[2]) if tokens[2].lstrip('-').isdigit() else 0
+                self.condition = tokens[3]
+            else:
+                self.logger.warning(f"Invalid item level/weight/cost/condition line: {line}, setting defaults.")
+                self.level = 0
+                self.weight = 0
+                self.cost = 0
+                self.condition = 'P'
+            index += 1
 
         # Affect data, extra descriptions, and flag modifications
         while index < len(lines):
@@ -106,17 +119,19 @@ class Item:
                 # We'll skip these for now
                 index += 1
             elif line.startswith('E'):
-                # Extra description
+                # Extra description: E then keyword~ then multiline description ending with ~
                 extra_descr = {}
                 index += 1
-                extra_descr['keyword'] = self._parse_terminated_string(self.logger, lines, index)
-                index += 1
-                extra_descr['description'] = self._parse_terminated_string(self.logger, lines, index)
-                index += 1
+                if index < len(lines):
+                    extra_descr['keyword'] = self._parse_terminated_string(lines, index)
+                    index += 1
+                if index < len(lines):
+                    # Parse multiline description
+                    extra_descr['description'], index = self._parse_multiline_terminated_string(lines, index)
                 self.extra_descr.append(extra_descr)
             else:
-                # Unknown line, skip it
-                index += 1
+                # Unknown line or end marker, break
+                break
 
     @staticmethod
     def _parse_affect_data(lines, index):
@@ -125,18 +140,42 @@ class Item:
         """
         return lines[index].strip()
 
-    @staticmethod
-    def _parse_terminated_string(logger, lines, index):
+    def _parse_terminated_string(self, lines, index):
         """
-        Parses a string terminated with a tilde (~).
+        Parses a string terminated with a tilde (~) on the same line.
         """
         if index < len(lines):
             line = lines[index].strip()
             if line.endswith('~'):
                 return line.rstrip('~').strip()
         # Handle case where tilde is missing, avoid throwing an error
-        logger.error(f"Warning: Unexpected end of data while parsing item string at index {index}")
+        self.logger.warning(f"Expected tilde-terminated string at index {index}")
         return ""
+
+    def _parse_multiline_terminated_string(self, lines, index):
+        """
+        Parses a string terminated with a tilde (~).
+        The tilde can be on the same line as the content, or on its own line.
+        Mimics fread_string from C which reads until '~' is encountered.
+        """
+        description_lines = []
+        while index < len(lines):
+            line = lines[index]
+
+            # Check if line contains a tilde
+            if '~' in line:
+                # Extract content before the tilde
+                content = line[:line.index('~')].strip()
+                if content:
+                    description_lines.append(content)
+                index += 1
+                break
+            else:
+                # No tilde on this line, add the whole line
+                description_lines.append(line.strip())
+                index += 1
+
+        return "\n".join(description_lines), index
 
     def to_dict(self):
         """
@@ -148,14 +187,20 @@ class Item:
             'name': self.name or "unnamed",
             'shortDescription': self.short_descr,
             'longDescription': self.long_descr,
-            'description': self.description,
+            'material': self.material,
             'itemType': self.item_type,
             'extraFlags': self.extra_flags,
             'wearFlags': self.wear_flags,
-            'value': self.value,
-            'weight': self.weight,
+            'value0': self.value0,
+            'value1': self.value1,
+            'value2': self.value2,
+            'value3': self.value3,
+            'value4': self.value4,
             'level': self.level,
+            'weight': self.weight,
+            'cost': self.cost,
+            'condition': self.condition,
             'affectData': self.affect_data,
-            'extraDescr': [ed['keyword'] for ed in self.extra_descr],  # Convert extra descriptions to list of keywords
+            'extraDescr': self.extra_descr,
             'id': self.id
         }

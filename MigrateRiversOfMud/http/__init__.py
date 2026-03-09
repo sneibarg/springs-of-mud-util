@@ -32,8 +32,7 @@ def generate_mongo_id() -> str:
 def handle_response(resp):
     if resp.status_code in [200, 201]:
         return resp
-    print(f'Error: {resp.text}')
-    return None
+    return resp.text
 
 
 def get(payload, url):

@@ -22,29 +22,56 @@ class Special:
     def _parse_special_data(self, line):
         """
         Parses a single line representing a special function.
-        ROM 2.4 format: M <vnum> <spec_function> [comment]
-        Also handles '*' comment lines and 'S' terminator
+        ROM 2.4 format: M <vnum> <spec_function> [* comment]
+
+        Matches the C code in db.c load_specials() function:
+        - Reads a letter: 'S' ends, '*' is comment, 'M' is mob special
+        - For 'M': vnum = fread_number, spec_fun = fread_word
+        - Then fread_to_eol (consumes rest of line including comment)
         """
         line = line.strip()
 
-        # Skip comment lines and terminator
-        if not line or line.startswith('*') or line == 'S':
-            return
+        # Skip empty lines
+        if not line:
+            raise ValueError(f"Invalid special line: Empty line")
+
+        # Skip comment lines (lines starting with *)
+        if line.startswith('*'):
+            raise ValueError(f"Invalid special line: Comment line")
+
+        # Skip 'S' end marker
+        if line == 'S':
+            raise ValueError(f"Invalid special line: End marker")
+
+        # Skip section markers
+        if line.startswith('#'):
+            raise ValueError(f"Invalid special line: Section marker")
 
         tokens = line.split()
 
-        # First token should be 'M'
-        if len(tokens) >= 3 and tokens[0] == 'M':
-            self.mob_vnum = int(tokens[1])
-            self.special_function = tokens[2]
-            # Comment starts after position 2, may or may not have '*'
-            if len(tokens) > 3:
-                comment_part = " ".join(tokens[3:])
-                self.comment = comment_part.lstrip('*').strip()
+        # Must be: M vnum spec_function [* comment]
+        if len(tokens) < 3:
+            raise ValueError(f"Invalid special line: Insufficient data: {line}")
+
+        if tokens[0] != 'M':
+            raise ValueError(f"Invalid special line: Expected 'M', got '{tokens[0]}'")
+
+        self.mob_vnum = int(tokens[1]) if tokens[1].lstrip('-').isdigit() else 0
+        self.special_function = tokens[2]
+
+        # Extract comment (everything after the spec_function)
+        if len(tokens) > 3:
+            # Find the position after spec_function and extract the rest
+            rest_of_line = line.split(tokens[2], 1)[1].strip()
+            # Remove leading '*' if present
+            if rest_of_line.startswith('*'):
+                self.comment = rest_of_line[1:].strip()
             else:
-                self.comment = ""
+                self.comment = rest_of_line
         else:
-            self.logger.warning(f"Invalid special data line format: {line}")
+            self.comment = ""
+
+        self.logger.debug(f"Parsed special: mob_vnum={self.mob_vnum}, spec_function={self.special_function}, comment={self.comment}")
 
     def to_dict(self):
         """

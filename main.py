@@ -2,7 +2,7 @@ import os
 from MigrateRiversOfMud import migrate_rom, build_presentation
 
 area_directory = "C:\\Users\\scott\\CLionProjects\\rom24-quickmud\\area"
-presentation = True
+presentation = False
 
 # Feature Flags
 COMPACT_MODE = True  # Set to True for tighter spacing and more content per sheet
