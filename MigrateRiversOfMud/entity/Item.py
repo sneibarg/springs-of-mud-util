@@ -1,3 +1,4 @@
+import shlex
 from MigrateRiversOfMud.http import generate_mongo_id
 from MigrateRiversOfMud.logging import setup_logger
 
@@ -73,7 +74,11 @@ class Item:
         # Value fields (5 values) - all on one line
         if index < len(lines):
             line = lines[index].strip()
-            tokens = line.split()
+            try:
+                tokens = shlex.split(line)
+            except ValueError:
+                # Fallback to simple split if shlex fails
+                tokens = line.split()
             if len(tokens) >= 5:
                 self.value0 = tokens[0]
                 self.value1 = tokens[1]

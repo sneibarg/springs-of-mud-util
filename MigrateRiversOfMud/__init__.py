@@ -1,14 +1,12 @@
 import os
 import re
-
-# Set matplotlib to use non-interactive backend to reduce memory usage
 import matplotlib
-matplotlib.use('Agg')
 
 from MigrateRiversOfMud.entity.Area import Area
-from MigrateRiversOfMud.entity.Orchestrator import Orchestrator
+from MigrateRiversOfMud.Orchestrator import Orchestrator
 from MigrateRiversOfMud.presentation import RomDeck, RomLayoutEngine, RomHtmlEngine, RomMapEntity
 
+matplotlib.use('Agg')
 
 
 def snake_case_to_camel(snake_str):
