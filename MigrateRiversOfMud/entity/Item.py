@@ -10,7 +10,7 @@ class Item:
         """
         self.area_id = area_id
         self.id = generate_mongo_id()
-        self.vnum = None
+        self.vnum = data[0][1:] if len(data) > 0 else "unknown"
         self.name = None
         self.short_descr = None
         self.long_descr = None
@@ -33,8 +33,10 @@ class Item:
 
         try:
             self._parse_item_data(data)
-        except ValueError as e:
-            self.logger.error(f"Error while parsing item data: {e}")
+        except Exception as e:
+            self.logger.error(f"Error while parsing item {self.vnum}: {e}")
+            self.logger.error(f"Item data: {data}")
+            raise
 
     def _parse_item_data(self, lines):
         """
@@ -115,28 +117,30 @@ class Item:
         while index < len(lines):
             line = lines[index].strip()
             if line.startswith('A'):
-                # Affect: A <location> <modifier>
-                affect_data = self._parse_affect_data(lines, index)
-                self.affect_data.append(affect_data)
+                # Affect: A on one line, then <location> <modifier> on next line
                 index += 1
+                if index < len(lines):
+                    affect_data = self._parse_affect_data(lines, index)
+                    self.affect_data.append(affect_data)
+                    index += 1
             elif line.startswith('F'):
                 # Flag modification: F <type> <location> <modifier> <bitvector>
                 # We'll skip these for now
                 index += 1
             elif line.startswith('E'):
                 # Extra description: E then keyword~ then multiline description ending with ~
-                extra_descr = {}
                 index += 1
                 if index < len(lines):
-                    extra_descr['keyword'] = self._parse_terminated_string(lines, index)
+                    keyword = self._parse_terminated_string(lines, index)
+                    self.extra_descr.append(keyword)
                     index += 1
                 if index < len(lines):
                     # Parse multiline description
-                    extra_descr['description'], index = self._parse_multiline_terminated_string(lines, index)
-                self.extra_descr.append(extra_descr)
+                    description, index = self._parse_multiline_terminated_string(lines, index)
+                    self.extra_descr.append(description)
             else:
-                # Unknown line or end marker, break
-                break
+                # Unknown line, skip it
+                index += 1
 
     @staticmethod
     def _parse_affect_data(lines, index):

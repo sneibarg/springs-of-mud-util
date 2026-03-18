@@ -81,8 +81,6 @@ class Area:
                 current_section = 'SHOPS'
             elif line.startswith('#SPECIALS'):
                 current_section = 'SPECIALS'
-            elif line == '#0':
-                current_section = None
 
             if current_section in sections:
                 sections[current_section].append(line)
@@ -102,9 +100,11 @@ class Area:
         shop_lines = self._split_entities(sections['SHOPS'], 'SHOPS')
 
         self._pre_generate_room_ids(room_lines)
+        self.logger.info(f"Parsing {len(object_lines)} objects from OBJECTS section")
         self.rooms = [self._create_room(room_data) for room_data in room_lines]  # if self._is_valid_room(room_data)]
         self.mobiles = [self._create_mobile(mobile_data) for mobile_data in mobile_lines]
-        self.objects = [self._create_object(object_data) for object_data in object_lines]
+        self.objects = [obj for obj in [self._create_object(object_data) for object_data in object_lines] if obj is not None]
+        self.logger.info(f"Successfully created {len(self.objects)} object instances")
         self.shops = [self._create_shop(shop_data) for shop_data in shop_lines]
         self.resets = [self._create_reset(line) for line in sections['RESETS'][1:]]
         self.specials = [self._create_special(line) for line in sections['SPECIALS'][1:]]
@@ -129,10 +129,17 @@ class Area:
         for line in lines:
             if line == f"#{entity_type}":
                 continue
-            if bool(re.match(r'^#\d+$', line)) and len(current_entity) > 0:
-                entities.append(current_entity)
-                current_entity = []
-            current_entity.append(line)
+            if line == '#0':
+                # End of entities marker
+                if len(current_entity) > 0:
+                    entities.append(current_entity)
+                break
+            if bool(re.match(r'^#\d+$', line)):
+                if len(current_entity) > 0:
+                    entities.append(current_entity)
+                current_entity = [line]
+            else:
+                current_entity.append(line)
         if current_entity:
             entities.append(current_entity)
         return entities
@@ -209,7 +216,12 @@ class Area:
         """
         Creates an Item object, assigns its pre-generated MongoID, and returns the Item.
         """
-        return Item(self.id, object_data)
+        try:
+            return Item(self.id, object_data)
+        except Exception as e:
+            self.logger.error(f"Failed to create item from data: {object_data[:3] if len(object_data) > 3 else object_data}")
+            self.logger.error(f"Error: {e}")
+            return None
 
     def _create_room(self, room_data):
         """
