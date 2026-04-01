@@ -279,6 +279,13 @@ class Room:
                 connections[direction] = exit_room
         return connections
 
+    def build_exits(self):
+        exit_json = {}
+        for exit in DirectionMapping:
+            key = exit.name.lower().replace("exit_", "")
+            exit_json[key] = self.get_exit_room_id(exit.value)
+        return str(exit_json)
+
     def to_dict(self):
         payload = {
             'areaId': self.area.id,
@@ -296,12 +303,7 @@ class Room:
             'alternateRoutes': [],
             'extraDescription': [],
             'id': self.id,
-            'exitNorth': self.get_exit_room_id(DirectionMapping.EXIT_NORTH.value),
-            'exitEast': self.get_exit_room_id(DirectionMapping.EXIT_EAST.value),
-            'exitSouth': self.get_exit_room_id(DirectionMapping.EXIT_SOUTH.value),
-            'exitWest': self.get_exit_room_id(DirectionMapping.EXIT_WEST.value),
-            'exitUp': self.get_exit_room_id(DirectionMapping.EXIT_UP.value),
-            'exitDown': self.get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
+            'exits': self.build_exits(),
         }
         return payload
 

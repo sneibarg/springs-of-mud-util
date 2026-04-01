@@ -8,6 +8,7 @@ presentation = False
 COMPACT_MODE = True  # Set to True for tighter spacing and more content per sheet
 PARALLEL_PROCESSING = False  # Set to True to process areas in parallel
 OUTPUT_FORMAT = 'html'  # 'pdf' or 'html' - Choose output format for presentation
+MIGRATE_TYPE = "helps"  # all, areas, socials, helps
 
 
 def main():
@@ -20,7 +21,12 @@ def main():
             output_format=OUTPUT_FORMAT
         )
     else:
-        migrate_rom("C:\\Users\\scott\\CLionProjects\\rom24-quickmud\\area", dry_run=False, delete_first=True)
+        migrate_rom(
+            "C:\\Users\\scott\\CLionProjects\\rom24-quickmud\\area",
+            dry_run=False,
+            delete_first=True,
+            migrate_type=MIGRATE_TYPE
+        )
 
 
 if __name__ == '__main__':

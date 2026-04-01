@@ -32,8 +32,22 @@ def add_space_around_operators(code):
     return re.sub('({})'.format(pattern), r' \1 ', code)
 
 
-def migrate_rom(area_dir, dry_run=False, delete_first=False):
-    orchestrator = Orchestrator(area_dir, dry_run=dry_run, delete_first=delete_first)
+def migrate_rom(
+    area_dir,
+    dry_run=False,
+    delete_first=False,
+    socials_file=None,
+    helps_file=None,
+    migrate_type="all"
+):
+    orchestrator = Orchestrator(
+        area_dir,
+        dry_run=dry_run,
+        delete_first=delete_first,
+        socials_file=socials_file,
+        helps_file=helps_file,
+        migrate_type=migrate_type
+    )
     orchestrator.run()
 
 

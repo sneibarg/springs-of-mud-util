@@ -118,15 +118,28 @@ class Item:
             line = lines[index].strip()
             if line.startswith('A'):
                 # Affect: A on one line, then <location> <modifier> on next line
+                # Format: "A,<location>,<modifier>"
                 index += 1
                 if index < len(lines):
-                    affect_data = self._parse_affect_data(lines, index)
-                    self.affect_data.append(affect_data)
+                    affect_line = lines[index].strip().split()
+                    csv_affect = 'A,' + ','.join(affect_line)
+                    self.affect_data.append(csv_affect)
                     index += 1
             elif line.startswith('F'):
-                # Flag modification: F <type> <location> <modifier> <bitvector>
-                # We'll skip these for now
+                # Flag modification: F on one line, then letter (A/I/R/V) followed by <location> <modifier> <bitvector> on next line
+                # Format: "F,<letter>,<location>,<modifier>,<bitvector>"
                 index += 1
+                if index < len(lines):
+                    # Next line has letter as first character, then data
+                    data_line = lines[index].strip()
+                    if len(data_line) > 0:
+                        # First character is the letter (A/I/R/V)
+                        letter = data_line[0]
+                        # Rest of the line is location, modifier, bitvector
+                        remaining = data_line[1:].strip().split()
+                        csv_affect = 'F,' + letter + ',' + ','.join(remaining)
+                        self.affect_data.append(csv_affect)
+                    index += 1
             elif line.startswith('E'):
                 # Extra description: E then keyword~ then multiline description ending with ~
                 index += 1

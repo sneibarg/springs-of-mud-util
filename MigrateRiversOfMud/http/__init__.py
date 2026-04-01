@@ -10,7 +10,9 @@ api_endpoints = {
     'item': "http://dragon:9080/api/v1/",
     'shop': "http://dragon:9080/api/v1/",
     'reset': "http://dragon:9080/api/v1/",
-    'special': "http://dragon:9080/api/v1/"
+    'special': "http://dragon:9080/api/v1/",
+    'social': "http://dragon:9080/api/v1/",
+    'help': "http://dragon:9080/api/v1/"
 }
 
 headers = {
