@@ -1,6 +1,6 @@
 import json
 
-from MigrateRiversOfMud.http import generate_mongo_id, post, api_endpoints
+from MigrateRiversOfMud.http.SOMClient import generate_mongo_id, post, api_endpoints
 from MigrateRiversOfMud.logging import setup_logger
 
 

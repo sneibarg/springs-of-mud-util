@@ -8,7 +8,7 @@ presentation = False
 COMPACT_MODE = True  # Set to True for tighter spacing and more content per sheet
 PARALLEL_PROCESSING = False  # Set to True to process areas in parallel
 OUTPUT_FORMAT = 'html'  # 'pdf' or 'html' - Choose output format for presentation
-MIGRATE_TYPE = "helps"  # all, areas, socials, helps
+MIGRATE_TYPE = "all"  # all, areas, socials, helps
 
 
 def main():

@@ -1,5 +1,5 @@
 import shlex
-from MigrateRiversOfMud.http import generate_mongo_id
+from MigrateRiversOfMud.http.SOMClient import generate_mongo_id
 from MigrateRiversOfMud.logging import setup_logger
 
 

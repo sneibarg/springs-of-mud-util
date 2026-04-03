@@ -5,7 +5,7 @@ import time
 from MigrateRiversOfMud.entity.Area import Area
 from MigrateRiversOfMud.entity.Helps import Helps
 from MigrateRiversOfMud.entity.Socials import Socials
-from MigrateRiversOfMud.http import delete, api_endpoints
+from MigrateRiversOfMud.http.SOMClient import delete, api_endpoints
 
 
 class Orchestrator:

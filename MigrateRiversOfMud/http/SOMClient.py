@@ -1,0 +1,65 @@
+import json
+import random
+import time
+import requests
+
+api_endpoints = {
+    'area': "http://dragon:9080/api/v1/",
+    'room': "http://dragon:9080/api/v1/",
+    'mobile': "http://dragon:9080/api/v1/",
+    'item': "http://dragon:9080/api/v1/",
+    'shop': "http://dragon:9080/api/v1/",
+    'reset': "http://dragon:9080/api/v1/",
+    'special': "http://dragon:9080/api/v1/",
+    'social': "http://dragon:9080/api/v1/",
+    'help': "http://dragon:9080/api/v1/"
+}
+
+headers = {
+    'Content-Type': 'application/json'
+}
+
+
+def generate_mongo_id() -> str:
+    """
+    Generate a unique MongoDB ObjectId as a hexadecimal string.
+    """
+    timestamp = int(time.time()).to_bytes(4, 'big')
+    machine_id = random.getrandbits(24).to_bytes(3, 'big')
+    process_id = random.getrandbits(16).to_bytes(2, 'big')
+    counter = random.getrandbits(24).to_bytes(3, 'big')
+    return (timestamp + machine_id + process_id + counter).hex()
+
+
+def handle_response(resp):
+    if resp.status_code in [200, 201]:
+        return resp
+    return resp.text
+
+
+def get(payload, url):
+    """
+    Make an HTTP GET request with the given payload to the specified URL.
+    """
+    return handle_response(requests.get(url, data=json.dumps(payload), headers=headers))
+
+
+def post(payload, url):
+    """
+    Make an HTTP POST request with the given payload to the specified URL.
+    """
+    return handle_response(requests.post(url, data=json.dumps(payload), headers=headers))
+
+
+def put(payload, url):
+    """
+    Make an HTTP PUT request with the given payload to the specified URL.
+    """
+    return handle_response(requests.put(url, data=json.dumps(payload), headers=headers))
+
+
+def delete(url):
+    """
+    Make an HTTP DELETE request to the specified URL.
+    """
+    return handle_response(requests.delete(url, headers=headers))

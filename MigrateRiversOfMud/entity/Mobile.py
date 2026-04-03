@@ -1,4 +1,4 @@
-from MigrateRiversOfMud.http import generate_mongo_id
+from MigrateRiversOfMud.http.SOMClient import *
 from MigrateRiversOfMud.logging import setup_logger
 
 
