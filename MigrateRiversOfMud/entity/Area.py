@@ -13,8 +13,10 @@ from MigrateRiversOfMud.logging import setup_logger
 
 class Area:
     def __init__(self, area_file, insert=True, filename='Area.log'):
+        self.area_file = area_file
         self.author = None
         self.name = None
+        self.vnum = None
         self.insert = insert
         self.id = generate_mongo_id()
         self.suggested_level_range = None
@@ -51,6 +53,20 @@ class Area:
                 self.suggested_level_range = match.group("level_range").strip()
                 self.author = match.group("author")
                 self.name = match.group("area_name").strip() or "Unnamed Area"
+                if self.name == "Unnamed Area":
+                    print(f"line={line}")
+        self.vnum = self._extract_area_vnum()
+
+    def _extract_area_vnum(self):
+        """
+        Extract area vnum from the ROM #AREA header line "<min_vnum> <max_vnum>".
+        Uses min_vnum as the AreaDocument vnum, with file stem fallback.
+        """
+        for line in self.lines:
+            match = re.match(r'^\s*(\d+)\s+(\d+)\s*$', line)
+            if match:
+                return match.group(1)
+        return self.area_file.split("\\")[-1].split(".")[0]
 
     def _split_sections(self):
         """
@@ -332,10 +348,13 @@ class Area:
         """
         Return a payload for creating a new area document in MongoDB.
         """
+        if not self.name:
+            print(f"{self.vnum}; {self.id}; {self.author}; {self.suggested_level_range}")
         return {
             'id': self.id,
             'name': self.name or "Unnamed Area",
             'author': self.author,
+            'vnum': self.vnum,
             'totalRooms': 0,
             'rooms': [],
             'suggestedLevelRange': self.suggested_level_range,

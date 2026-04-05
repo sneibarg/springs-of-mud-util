@@ -70,7 +70,7 @@ class Orchestrator:
         for file in os.listdir(self.directory):
             if not file.endswith('.are'):
                 continue
-            if file.lower() in ("social.are", "help.are"):
+            if file.lower() in ("social.are", "help.are", "group.are", "rom.are"):
                 continue
             area_files.append(os.path.join(self.directory, file))
         return area_files
@@ -138,6 +138,9 @@ class Orchestrator:
             if self.dry_run:
                 print("DRY RUN: Processing area files sequentially for logging...")
                 for area_file in self.area_files:
+                    print(f"Processing {area_file}...")
+                    if area_file.endswith("rom.are") or area_file.endswith("group.are") or area_file.endswith("help.are"):
+                        continue
                     self.process_area_file(area_file)
             else:
                 with multiprocessing.Pool(multiprocessing.cpu_count()) as pool:

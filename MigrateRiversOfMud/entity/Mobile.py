@@ -20,24 +20,12 @@ class Mobile:
         self.group = None
         self.level = None
         self.hitroll = None
-        self.hit_dice_number = None
-        self.hit_dice_type = None
-        self.hit_dice_bonus = None
-        self.mana_dice_number = None
-        self.mana_dice_type = None
-        self.mana_dice_bonus = None
-        self.damage_dice_number = None
-        self.damage_dice_type = None
-        self.damage_dice_bonus = None
+        self.hit_dice = None
+        self.mana_dice = None
+        self.damage_dice = None
         self.dam_type = None
-        self.ac_pierce = None
-        self.ac_bash = None
-        self.ac_slash = None
-        self.ac_exotic = None
-        self.off_flags = None
-        self.imm_flags = None
-        self.res_flags = None
-        self.vuln_flags = None
+        self.armor_class = None
+        self.combat_flags = None
         self.start_pos = None
         self.default_pos = None
         self.sex = None
@@ -104,48 +92,31 @@ class Mobile:
                 self.logger.warning(f"Invalid mobile level/hitroll/dice line: {tokens}, setting defaults.")
                 self.level = 0
                 self.hitroll = 0
-                self.hit_dice_number = 0
-                self.hit_dice_type = 0
-                self.hit_dice_bonus = 0
-                self.mana_dice_number = 0
-                self.mana_dice_type = 0
-                self.mana_dice_bonus = 0
-                self.damage_dice_number = 0
-                self.damage_dice_type = 0
-                self.damage_dice_bonus = 0
+                self.hit_dice = str({'number': 0, 'type': 0, 'bonus': 0})
+                self.mana_dice = str({'number': 0, 'type': 0, 'bonus': 0})
+                self.damage_dice = str({'number': 0, 'type': 0, 'bonus': 0})
                 self.dam_type = 'none'
             index += 1
 
         # AC values (4 numbers: pierce, bash, slash, exotic)
         if index < len(lines):
             tokens = lines[index].split()
+            self.armor_class = {}
             if len(tokens) >= 4:
-                self.ac_pierce = int(tokens[0]) * 10
-                self.ac_bash = int(tokens[1]) * 10
-                self.ac_slash = int(tokens[2]) * 10
-                self.ac_exotic = int(tokens[3]) * 10
+                self.armor_class = str({'pierce': int(tokens[0]) * 10, 'bash': int(tokens[1]) * 10, 'slash': int(tokens[2]) * 10, 'exotic': int(tokens[3]) * 10})
             else:
                 self.logger.warning("Invalid AC line, setting defaults.")
-                self.ac_pierce = 0
-                self.ac_bash = 0
-                self.ac_slash = 0
-                self.ac_exotic = 0
+                self.armor_class = str({'pierce': 0, 'bash': 0, 'slash': 0, 'exotic': 0})
             index += 1
 
         # Off/imm/res/vuln flags (4 flag values)
         if index < len(lines):
             tokens = lines[index].split()
             if len(tokens) >= 4:
-                self.off_flags = int(tokens[0]) if tokens[0].isdigit() else 0
-                self.imm_flags = int(tokens[1]) if tokens[1].isdigit() else 0
-                self.res_flags = int(tokens[2]) if tokens[2].isdigit() else 0
-                self.vuln_flags = int(tokens[3]) if tokens[3].isdigit() else 0
+                self.combat_flags = str({'off_flags': int(tokens[0]), 'imm_flags': int(tokens[1]), 'res_flags': int(tokens[2]), 'vuln_flags': int(tokens[3])})
             else:
                 self.logger.warning("Invalid flags line, setting defaults.")
-                self.off_flags = 0
-                self.imm_flags = 0
-                self.res_flags = 0
-                self.vuln_flags = 0
+                self.combat_flags = str({'off_flags': 0, 'imm_flags': 0, 'res_flags': 0, 'vuln_flags': 0})
             index += 1
 
         # Start pos, default pos, sex, gold (all on one line)
@@ -200,17 +171,11 @@ class Mobile:
                     bonus = 0
 
                 if dice_type == 'hit':
-                    self.hit_dice_number = number
-                    self.hit_dice_type = dice_type_val
-                    self.hit_dice_bonus = bonus
+                    self.hit_dice = str({'number': number, 'type': dice_type_val, 'bonus': bonus})
                 elif dice_type == 'mana':
-                    self.mana_dice_number = number
-                    self.mana_dice_type = dice_type_val
-                    self.mana_dice_bonus = bonus
+                    self.mana_dice = str({'number': number, 'type': dice_type_val, 'bonus': bonus})
                 elif dice_type == 'damage':
-                    self.damage_dice_number = number
-                    self.damage_dice_type = dice_type_val
-                    self.damage_dice_bonus = bonus
+                    self.damage_dice = str({'number': number, 'type': dice_type_val, 'bonus': bonus})
             else:
                 self.logger.warning(f"Invalid dice notation: {dice_str}")
         except Exception as e:
@@ -279,24 +244,12 @@ class Mobile:
             'group': self.group,
             'level': self.level,
             'hitroll': self.hitroll,
-            'hitDiceNumber': self.hit_dice_number,
-            'hitDiceType': self.hit_dice_type,
-            'hitDiceBonus': self.hit_dice_bonus,
-            'manaDiceNumber': self.mana_dice_number,
-            'manaDiceType': self.mana_dice_type,
-            'manaDiceBonus': self.mana_dice_bonus,
-            'damageDiceNumber': self.damage_dice_number,
-            'damageDiceType': self.damage_dice_type,
-            'damageDiceBonus': self.damage_dice_bonus,
+            'hitDice': self.hit_dice,
+            'manaDice': self.mana_dice,
+            'damageDice': self.damage_dice,
             'damType': self.dam_type,
-            'acPierce': self.ac_pierce,
-            'acBash': self.ac_bash,
-            'acSlash': self.ac_slash,
-            'acExotic': self.ac_exotic,
-            'offFlags': self.off_flags,
-            'immFlags': self.imm_flags,
-            'resFlags': self.res_flags,
-            'vulnFlags': self.vuln_flags,
+            'armorClass': self.armor_class,
+            'combatFlags': self.combat_flags,
             'startPos': self.start_pos,
             'defaultPos': self.default_pos,
             'sex': self.sex,

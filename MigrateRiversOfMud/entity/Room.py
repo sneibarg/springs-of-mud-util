@@ -289,7 +289,7 @@ class Room:
     def to_dict(self):
         payload = {
             'areaId': self.area.id,
-            'vnum': self.vnum,
+            'vnum': str(self.vnum) if self.vnum is not None else None,
             'name': self.name or "Unnamed Room",
             'description': self.description,
             'spawn': False,
