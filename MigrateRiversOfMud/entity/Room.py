@@ -75,6 +75,8 @@ class Room:
         self.tele_delay = 0
         self.heal_rate = 100
         self.mana_rate = 100
+        self.clan = ''
+        self.owner = ''
         self.room_flags = 0
         self.sector_type = 0
         self.extra_descr = {}
@@ -111,7 +113,7 @@ class Room:
             self.tele_delay = flags_data['tele_delay']
             self.room_flags = flags_data['room_flags']
             self.sector_type = flags_data['sector_type']
-            self.exits, self.extra_descr, self.heal_rate, self.mana_rate, index = self._extract_exits_and_extras(lines, index)
+            self.exits, self.extra_descr, self.heal_rate, self.mana_rate, self.clan, self.owner, index = self._extract_exits_and_extras(lines, index)
         except ValueError as e:
             self.logger.error(f"Error while extracting room fields: {e}")
 
@@ -215,6 +217,8 @@ class Room:
         exits, extra_descr = [], {}
         heal_rate = self.heal_rate
         mana_rate = self.mana_rate
+        clan = self.clan
+        owner = self.owner
         while index < len(lines):
             line = lines[index].strip()
             if line == 'S':
@@ -245,9 +249,21 @@ class Room:
                     extra_descr['keyword'] = keyword
                     extra_descr['description'] = extra.get('description', '')
                     extra_descr['valid'] = True
+            elif line == 'C':
+                index += 1
+                clan_value, index = self._parse_terminated_line(lines, index)
+                if clan:
+                    self.logger.warning("Load_rooms parity: duplicate clan field encountered; keeping latest value.")
+                clan = clan_value
+            elif line == 'O':
+                index += 1
+                owner_value, index = self._parse_terminated_line(lines, index)
+                if owner:
+                    self.logger.warning("Load_rooms parity: duplicate owner field encountered; keeping latest value.")
+                owner = owner_value
             else:
                 index += 1
-        return exits, extra_descr, heal_rate, mana_rate, index
+        return exits, extra_descr, heal_rate, mana_rate, clan, owner, index
 
     def _parse_room_flags(self, flags_str):
         """
@@ -337,6 +353,8 @@ class Room:
             'manaRate': self.mana_rate,
             'roomFlags': self.room_flags,
             'sectorType': self.sector_type,
+            'clan': self.clan,
+            'owner': self.owner,
             'mobiles': [],
             'alternateRoutes': [],
             'extraDescription': json.dumps(self.extra_descr, ensure_ascii=False),
