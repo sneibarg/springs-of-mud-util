@@ -58,6 +58,13 @@ class Mobile:
         self.description, index = self._parse_multiline_terminated_string(lines, index)
         self.race = self._parse_terminated_string(lines, index)
         index += 1
+        # Some old-style areas include an extra tilde-terminated flags line (e.g. "unique~")
+        # between race and the act/affect/alignment/group numeric line.
+        if index < len(lines):
+            line = lines[index].strip()
+            if line.endswith('~'):
+                self.flags = line.rstrip('~').strip()
+                index += 1
         self.logger.debug(f"Mobile name {self.name} and short description {self.short_descr}")
 
         # Act flags, affect flags, alignment, group (all on one line)
@@ -65,10 +72,10 @@ class Mobile:
             line = lines[index].strip()
             tokens = line.split()
             if len(tokens) >= 4:
-                self.act_flags = int(tokens[0]) if tokens[0].isdigit() else 0
-                self.affect_flags = int(tokens[1]) if tokens[1].isdigit() else 0
-                self.alignment = int(tokens[2])
-                self.group = int(tokens[3])
+                self.act_flags = self._safe_int(tokens[0], 0)
+                self.affect_flags = self._safe_int(tokens[1], 0)
+                self.alignment = self._safe_int(tokens[2], 0)
+                self.group = self._safe_int(tokens[3], 0)
             else:
                 self.logger.warning(f"Invalid mobile act/affect/align/group line: {line}, setting defaults.")
                 self.act_flags = 0
@@ -82,8 +89,8 @@ class Mobile:
         if index < len(lines):
             tokens = lines[index].split()
             if len(tokens) >= 6:
-                self.level = int(tokens[0])
-                self.hitroll = int(tokens[1])
+                self.level = self._safe_int(tokens[0], 0)
+                self.hitroll = self._safe_int(tokens[1], 0)
                 self._parse_dice(tokens[2], 'hit')
                 self._parse_dice(tokens[3], 'mana')
                 self._parse_dice(tokens[4], 'damage')
@@ -103,7 +110,12 @@ class Mobile:
             tokens = lines[index].split()
             self.armor_class = {}
             if len(tokens) >= 4:
-                self.armor_class = str({'pierce': int(tokens[0]) * 10, 'bash': int(tokens[1]) * 10, 'slash': int(tokens[2]) * 10, 'exotic': int(tokens[3]) * 10})
+                self.armor_class = str({
+                    'pierce': self._safe_int(tokens[0], 0) * 10,
+                    'bash': self._safe_int(tokens[1], 0) * 10,
+                    'slash': self._safe_int(tokens[2], 0) * 10,
+                    'exotic': self._safe_int(tokens[3], 0) * 10
+                })
             else:
                 self.logger.warning("Invalid AC line, setting defaults.")
                 self.armor_class = str({'pierce': 0, 'bash': 0, 'slash': 0, 'exotic': 0})
@@ -113,7 +125,12 @@ class Mobile:
         if index < len(lines):
             tokens = lines[index].split()
             if len(tokens) >= 4:
-                self.combat_flags = str({'off_flags': int(tokens[0]), 'imm_flags': int(tokens[1]), 'res_flags': int(tokens[2]), 'vuln_flags': int(tokens[3])})
+                self.combat_flags = str({
+                    'off_flags': self._parse_flag_token(tokens[0]),
+                    'imm_flags': self._parse_flag_token(tokens[1]),
+                    'res_flags': self._parse_flag_token(tokens[2]),
+                    'vuln_flags': self._parse_flag_token(tokens[3])
+                })
             else:
                 self.logger.warning("Invalid flags line, setting defaults.")
                 self.combat_flags = str({'off_flags': 0, 'imm_flags': 0, 'res_flags': 0, 'vuln_flags': 0})
@@ -126,7 +143,7 @@ class Mobile:
                 self.start_pos = self._position_lookup(tokens[0])
                 self.default_pos = self._position_lookup(tokens[1])
                 self.sex = self._sex_lookup(tokens[2])
-                self.gold = int(tokens[3])
+                self.gold = self._safe_int(tokens[3], 0)
             else:
                 self.logger.warning(f"Invalid mobile pos/sex/gold line: {tokens}, setting defaults.")
                 self.start_pos = 8
@@ -139,8 +156,8 @@ class Mobile:
         if index < len(lines):
             tokens = lines[index].split()
             if len(tokens) >= 4:
-                self.form = int(tokens[0]) if tokens[0].isdigit() else 0
-                self.parts = int(tokens[1]) if tokens[1].isdigit() else 0
+                self.form = self._safe_int(tokens[0], 0)
+                self.parts = self._safe_int(tokens[1], 0)
                 self.size = tokens[2]
                 self.material = tokens[3]
             else:
@@ -152,7 +169,23 @@ class Mobile:
             index += 1
 
         # There may be additional 'F' flag removal lines, but we'll skip those
-        self.flags = 0  # Set default for flags field
+        if self.flags is None:
+            self.flags = 0
+
+    @staticmethod
+    def _safe_int(value, default=0):
+        """Safely convert string token to int, returning default on failure."""
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _parse_flag_token(self, token):
+        """Return numeric flags as int and symbolic flags as-is."""
+        try:
+            return int(token)
+        except (TypeError, ValueError):
+            return token
 
     def _parse_dice(self, dice_str, dice_type):
         """Parse dice notation (e.g., '2d6+3') and store components"""
@@ -219,6 +252,10 @@ class Mobile:
         while index < len(lines):
             line = lines[index].strip()
             if line == '~':
+                index += 1
+                break
+            if line.endswith('~'):
+                description_lines.append(line[:-1].rstrip())
                 index += 1
                 break
             description_lines.append(line)

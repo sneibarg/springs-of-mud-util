@@ -1,4 +1,6 @@
 from enum import Enum
+import json
+import re
 from MigrateRiversOfMud.http.SOMClient import generate_mongo_id
 from MigrateRiversOfMud.logging import setup_logger
 
@@ -71,10 +73,12 @@ class Room:
         self.name = ''
         self.description = ''
         self.tele_delay = 0
+        self.heal_rate = 100
+        self.mana_rate = 100
         self.room_flags = 0
         self.sector_type = 0
-        self.extra_descr = []
-        self.exits = {}
+        self.extra_descr = {}
+        self.exits = []
         self.exitNorth = None
         self.exitEast = None
         self.exitSouth = None
@@ -85,12 +89,12 @@ class Room:
 
         try:
             self.extract_room_fields(self.data)
-            self.exitNorth = self.get_exit_room_id(DirectionMapping.EXIT_NORTH.value)
-            self.exitEast = self.get_exit_room_id(DirectionMapping.EXIT_EAST.value)
-            self.exitSouth = self.get_exit_room_id(DirectionMapping.EXIT_SOUTH.value)
-            self.exitWest = self.get_exit_room_id(DirectionMapping.EXIT_WEST.value)
-            self.exitUp = self.get_exit_room_id(DirectionMapping.EXIT_UP.value)
-            self.exitDown = self.get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
+            # self.exitNorth = self.get_exit_room_id(DirectionMapping.EXIT_NORTH.value)
+            # self.exitEast = self.get_exit_room_id(DirectionMapping.EXIT_EAST.value)
+            # self.exitSouth = self.get_exit_room_id(DirectionMapping.EXIT_SOUTH.value)
+            # self.exitWest = self.get_exit_room_id(DirectionMapping.EXIT_WEST.value)
+            # self.exitUp = self.get_exit_room_id(DirectionMapping.EXIT_UP.value)
+            # self.exitDown = self.get_exit_room_id(DirectionMapping.EXIT_DOWN.value)
         except ValueError as e:
             self.logger.error(f"Error extracting room fields: {e}")
 
@@ -107,7 +111,7 @@ class Room:
             self.tele_delay = flags_data['tele_delay']
             self.room_flags = flags_data['room_flags']
             self.sector_type = flags_data['sector_type']
-            self.exits, self.extra_descr, index = self._extract_exits_and_extras(lines, index)
+            self.exits, self.extra_descr, self.heal_rate, self.mana_rate, index = self._extract_exits_and_extras(lines, index)
         except ValueError as e:
             self.logger.error(f"Error while extracting room fields: {e}")
 
@@ -142,8 +146,8 @@ class Room:
         collected_lines = []
         while index < num_lines:
             line = lines[index]
-            if line.endswith('~'):
-                collected_lines.append(line.rstrip('~'))
+            if '~' in line:
+                collected_lines.append(line.split('~', 1)[0])
                 index += 1
                 break
             collected_lines.append(line)
@@ -173,6 +177,7 @@ class Room:
     def _parse_exit_data(self, lines, index):
         num_lines = len(lines)
         exit_data = {
+            'direction': -1,
             'description': '',
             'keyword': '',
             'exit_flags': 0,
@@ -198,7 +203,6 @@ class Room:
                 self.logger.warning(f"Invalid exit info line: '{exit_info_line}'. Using default values.")
         else:
             self.logger.warning("Unexpected end of data while parsing exit info. Using default values.")
-
         return {'exit': exit_data, 'index': index}
 
     def _parse_extra_descr(self, lines, index):
@@ -208,26 +212,42 @@ class Room:
         return {'extra': extra, 'index': index}
 
     def _extract_exits_and_extras(self, lines, index):
-        exits, extra_descr = {}, []
+        exits, extra_descr = [], {}
+        heal_rate = self.heal_rate
+        mana_rate = self.mana_rate
         while index < len(lines):
             line = lines[index].strip()
             if line == 'S':
                 index += 1
                 break
+            elif line.startswith('H') or line.startswith('M'):
+                # ROM room regen modifiers can appear as "H <num> M <num>" (or either one).
+                for flag, value in re.findall(r'([HM])\s+(-?\d+)', line):
+                    if flag == 'H':
+                        heal_rate = int(value)
+                    elif flag == 'M':
+                        mana_rate = int(value)
+                index += 1
             elif line.startswith('D') and len(line) > 1 and line[1].isdigit():
                 direction = int(line[1])
                 index += 1
                 exit_data = self._parse_exit_data(lines, index)
+                exit_data['exit']['direction'] = direction
                 index = exit_data['index']
-                exits[direction] = exit_data['exit']
+                exits.append(self._enrich_exit(exit_data['exit']))
             elif line == 'E':
                 index += 1
                 extra_descr_data = self._parse_extra_descr(lines, index)
                 index = extra_descr_data['index']
-                extra_descr.append(extra_descr_data['extra'])
+                extra = extra_descr_data['extra']
+                keyword = extra.get('keyword', '').strip()
+                if keyword:
+                    extra_descr['keyword'] = keyword
+                    extra_descr['description'] = extra.get('description', '')
+                    extra_descr['valid'] = True
             else:
                 index += 1
-        return exits, extra_descr, index
+        return exits, extra_descr, heal_rate, mana_rate, index
 
     def _parse_room_flags(self, flags_str):
         """
@@ -258,12 +278,31 @@ class Room:
         """
         Safely retrieves the MongoDB ID for the room in the given direction.
         """
-        exit_info = self.exits.get(direction)
-        if exit_info:
+        for exit_info in self.exits:
+            if exit_info.get('direction') != direction:
+                continue
             to_room_vnum = exit_info.get('to_room_vnum')
-            if to_room_vnum is not None:
-                return self.area.room_id_mapping.get(to_room_vnum)
+            if to_room_vnum is None:
+                return None
+            return self.area.room_id_mapping.get(to_room_vnum)
         return None
+
+    def get_room_id_from_vnum(self, to_room_vnum):
+        """
+        Safely retrieves the MongoDB ID for the provided room VNUM.
+        """
+        if to_room_vnum is None:
+            return None
+        return self.area.room_id_mapping.get(to_room_vnum)
+
+    def _enrich_exit(self, exit_info):
+        """
+        Ensure each exit has both source and destination room IDs.
+        """
+        enriched_exit = dict(exit_info)
+        enriched_exit['room_id'] = self.id
+        enriched_exit['to_room_id'] = self.get_room_id_from_vnum(enriched_exit.get('to_room_vnum'))
+        return enriched_exit
 
     def get_connections(self):
         connections = {'north': None, 'south': None, 'east': None, 'west': None, 'up': None, 'down': None}
@@ -280,11 +319,8 @@ class Room:
         return connections
 
     def build_exits(self):
-        exit_json = {}
-        for exit in DirectionMapping:
-            key = exit.name.lower().replace("exit_", "")
-            exit_json[key] = self.get_exit_room_id(exit.value)
-        return str(exit_json)
+        self.exits = [self._enrich_exit(exit_info) for exit_info in self.exits]
+        return self.exits
 
     def to_dict(self):
         payload = {
@@ -297,13 +333,15 @@ class Room:
             'spawnTimer': 60000,
             'spawnTime': 0,
             'teleDelay': self.tele_delay,
+            'healRate': self.heal_rate,
+            'manaRate': self.mana_rate,
             'roomFlags': self.room_flags,
             'sectorType': self.sector_type,
             'mobiles': [],
             'alternateRoutes': [],
-            'extraDescription': [],
+            'extraDescription': json.dumps(self.extra_descr, ensure_ascii=False),
             'id': self.id,
-            'exits': self.build_exits(),
+            'exits': [json.dumps(exit_info, ensure_ascii=False) for exit_info in self.build_exits()],
         }
         return payload
 
